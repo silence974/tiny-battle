@@ -258,6 +258,16 @@ test('dispatch charges route length, preserves route and force allocation, and r
   }), /HQ last soldier/);
 });
 
+test('dispatch to an own controlled tile merges without entering combat', () => {
+  let state = stageAction(freshGame());
+  const target = setControlledTile(state, 'p1', [0, 1], { militia: 1, guard: 0 });
+  state = command(state, 'p1', {
+    type: 'dispatch', from: [0, 0], to: [0, 1], route: [[0, 1]], forces: { militia: 1, guard: 0 },
+  });
+  assert.deepEqual(tile(state, [0, 1]).garrison, { militia: 2, guard: 0 });
+  assert.equal(state.pendingAttacks.length, 0);
+});
+
 test('building is legal on explored empty ground but production requires control', () => {
   let state = stageAction(freshGame());
   const empty = tile(state, [1, 1]);
@@ -343,6 +353,7 @@ test('black zone reward is one-time, black HQ grants points without ordinary rew
   state.phase = 'combat';
   state = Engine.advance(state);
   assert.equal(Engine.outcome(state).status, 'win');
+  assert.equal(state.players[0].permanentPoints, 1 + CONFIG.black.hqPoints);
   assert.equal(Engine.outcome(state).ranking.length, 4);
   assert.ok(Engine.outcome(state).ranking[0].score >= Engine.outcome(state).ranking.at(-1).score);
   const tieRanks = Engine.outcome(freshGame()).ranking.map((entry) => entry.rank);
@@ -359,6 +370,24 @@ test('forced final battle is a shared loss while score ranking remains available
   assert.equal(result.status, 'loss');
   assert.equal(result.reason, 'final_battle');
   assert.equal(result.ranking.length, 4);
+});
+
+test('final battle cards are added one per black phase and black deck refills from discard', () => {
+  let state = freshGame();
+  state.round = CONFIG.black.finalBattleStartRound;
+  state.phase = 'black';
+  state.black.deck = ['build', 'garrison'];
+  state.black.discard = ['garrison'];
+  state = Engine.advance(state);
+  assert.equal(state.black.finalBattleAdded, 1);
+  assert.equal(state.result, null);
+  assert.equal(state.black.discard.filter((card) => card === 'final_battle').length, 0);
+  state.round = CONFIG.black.finalBattleStartRound + 1;
+  state.phase = 'black';
+  state.black.deck = [];
+  state.black.discard = ['build'];
+  state = Engine.advance(state);
+  assert.equal(state.black.finalBattleAdded, 2);
 });
 
 test('score can be recomputed from board and permanent points, and resources/units remain conserved', () => {

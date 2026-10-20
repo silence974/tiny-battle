@@ -172,7 +172,7 @@ function createGame({ seed = 1, players, config = DEFAULT_CONFIG }) {
     expeditions: [],
     pendingAttacks: [],
     displacements: [],
-    black: { deck: buildDeck(config), discard: [], expansionStep: 1, powerBonus: 0 },
+    black: { deck: buildDeck(config), discard: [], expansionStep: 1, powerBonus: 0, finalBattleAdded: 0 },
     eventDeck: buildEventDeck(config),
     events: [],
     result: null,
@@ -669,7 +669,7 @@ function resolveCombat(state, config) {
       target.controlled = true;
       state.result = { status: 'win', reason: 'black_hq_captured' };
       state.phase = 'ended';
-      player.permanentPoints += 0;
+      player.permanentPoints += config.black.hqPoints;
     } else if (target.kind === 'black') {
       const underlying = target.blackUnderlying;
       target.kind = 'land';
@@ -765,10 +765,15 @@ function applyBlackExpansion(state, step, config) {
 }
 
 function drawBlack(state, config) {
-  if (state.round >= config.black.finalBattleStartRound && !state.black.deck.includes('final_battle')) {
-    state.black.deck.push(...Array.from({ length: config.black.finalBattleCount }, () => 'final_battle'));
+  const finalBattleAdded = state.black.finalBattleAdded || 0;
+  if (state.round >= config.black.finalBattleStartRound && finalBattleAdded < config.black.finalBattleCount) {
+    state.black.deck.push('final_battle');
+    state.black.finalBattleAdded = finalBattleAdded + 1;
   }
   for (let i = 0; i < config.black.drawPerRound; i += 1) {
+    if (!state.black.deck.length && state.black.discard.length) {
+      state.black.deck = state.black.discard.splice(0);
+    }
     const card = state.black.deck.shift();
     if (!card) break;
     state.black.discard.push(card);
