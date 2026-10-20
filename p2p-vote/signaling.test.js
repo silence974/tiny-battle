@@ -9,7 +9,12 @@ const {
   releaseSeat,
   makeSignal,
   acceptSignal,
+  JOIN_TIMEOUT_MS,
 } = require('./signaling.js');
+
+test('uses a bounded wait for a room response', () => {
+  assert.equal(JOIN_TIMEOUT_MS, 10_000);
+});
 
 test('validates a public Supabase config and rejects missing or secret keys', () => {
   assert.deepEqual(

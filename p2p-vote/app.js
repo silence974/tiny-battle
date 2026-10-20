@@ -2,7 +2,16 @@
 
 (() => {
   const { createState, createVoteEvent, applyEvent, mergeEvents, settle } = window.VoteGame;
-  const { validateConfig, roomTopic, createRoomState, allocateSeat, releaseSeat, makeSignal, acceptSignal } = window.Signaling;
+  const {
+    validateConfig,
+    roomTopic,
+    createRoomState,
+    allocateSeat,
+    releaseSeat,
+    makeSignal,
+    acceptSignal,
+    JOIN_TIMEOUT_MS,
+  } = window.Signaling;
   const NO_PUBLIC_SERVERS = { iceServers: [] };
   const PLAYER_COUNT = 4;
   const $ = (id) => document.getElementById(id);
@@ -17,7 +26,7 @@
   const state = {
     role: null, room: null, hostId: null, playerId: null, playerName: '', seat: null,
     hostPeers: new Map(), peers: new Map(), players: new Map(), game: null, sequence: 0,
-    meshStarted: false, meshReady: false, roomState: null, signaling: null, signalCounter: 0, signalSeen: new Set(),
+    meshStarted: false, meshReady: false, roomState: null, signaling: null, signalCounter: 0, signalSeen: new Set(), joinWaiter: null,
   };
 
   function randomId(prefix) {
@@ -54,6 +63,25 @@
   function setRoom(room) {
     state.room = room;
     ui.room.textContent = room || '—';
+  }
+
+  function waitForJoinResponse() {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        state.joinWaiter = null;
+        reject(new Error('未找到在线房主，请检查房间码并确认房主已创建房间'));
+      }, JOIN_TIMEOUT_MS);
+      state.joinWaiter = { resolve, reject, timer };
+    });
+  }
+
+  function finishJoinWaiter(error = null) {
+    const waiter = state.joinWaiter;
+    if (!waiter) return;
+    state.joinWaiter = null;
+    clearTimeout(waiter.timer);
+    if (error) waiter.reject(error);
+    else waiter.resolve();
   }
 
   function signalSourceId() {
@@ -201,10 +229,14 @@
     setStatus('正在连接信令服务…');
     try {
       await startSignaling();
+      const response = waitForJoinResponse();
       await sendSignal({ type: 'join', payload: { playerId: state.playerId, name: state.playerName } });
       ui.playerWaiting.textContent = '已申请入座，等待房主发送连接信息。';
       setStatus('已申请入座，等待房主。', 'ready');
+      await response;
+      setStatus('已找到房主，正在建立连接。', 'ready');
     } catch (error) {
+      finishJoinWaiter(error);
       ui.joinRoom.disabled = false;
       await stopSignaling(false);
       throw error;
@@ -249,6 +281,7 @@
       state.hostId = signal.from;
       state.seat = signal.payload.seat;
       ui.role.textContent = `玩家 ${state.seat}`;
+      finishJoinWaiter();
       const entry = { kind: 'host', peerId: 'host', pc: null, channel: null };
       const pc = createPeerConnection(entry);
       pc.ondatachannel = ({ channel }) => attachChannel(entry, channel);
@@ -272,6 +305,7 @@
     }
     if (signal.type === 'reject' && state.role === 'player' && signal.to === state.playerId) {
       const reason = signal.payload?.reason === 'room-full' ? '房间已满' : '房主拒绝了加入请求';
+      finishJoinWaiter(new Error(reason));
       ui.joinRoom.disabled = false;
       setStatus(reason, 'error');
       await stopSignaling(false);

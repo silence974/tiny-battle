@@ -1,5 +1,6 @@
 (() => {
   const PLAYER_COUNT = 4;
+  const JOIN_TIMEOUT_MS = 10_000;
 
   function fail(message) {
     return { ok: false, message };
@@ -82,6 +83,7 @@
     releaseSeat,
     makeSignal,
     acceptSignal,
+    JOIN_TIMEOUT_MS,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
