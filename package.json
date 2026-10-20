@@ -1,0 +1,14 @@
+{
+  "name": "tiny-battle-web-312",
+  "private": true,
+  "version": "0.1.0",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test tests/*.test.js p2p-vote/*.test.js",
+    "agent:step": "node agent-example.js --step",
+    "agent:act": "node agent-example.js --act"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1"
+  }
+}
