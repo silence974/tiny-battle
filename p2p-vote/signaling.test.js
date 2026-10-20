@@ -5,6 +5,9 @@ const {
   validateConfig,
   roomTopic,
   createRoomState,
+  defaultSeatNames,
+  createInvites,
+  setRoomInvites,
   allocateSeat,
   releaseSeat,
   makeSignal,
@@ -33,25 +36,65 @@ test('builds a stable room topic', () => {
   assert.equal(roomTopic('ABCD2345'), 'room:ABCD2345');
 });
 
+test('builds four fixed-seat invites with default names and host overrides', () => {
+  assert.deepEqual(defaultSeatNames(), ['A', 'B', 'C', 'D']);
+  assert.deepEqual(
+    createInvites(['Alice', '', 'Carol', 'Dana'], ['token-a', 'token-b', 'token-c', 'token-d']),
+    [
+      { seat: 1, name: 'Alice', token: 'token-a' },
+      { seat: 2, name: 'B', token: 'token-b' },
+      { seat: 3, name: 'Carol', token: 'token-c' },
+      { seat: 4, name: 'Dana', token: 'token-d' },
+    ],
+  );
+});
+
+test('only the matching invite can claim its fixed seat once', () => {
+  const state = createRoomState('ABCD2345', 'host-1');
+  setRoomInvites(state, createInvites(defaultSeatNames(), ['a', 'b', 'c', 'd']));
+
+  assert.deepEqual(allocateSeat(state, { playerId: 'p2', seat: 2, inviteToken: 'b' }), {
+    accepted: true,
+    seat: 2,
+  });
+  assert.equal(state.players.get('p2').name, 'B');
+  assert.deepEqual(allocateSeat(state, { playerId: 'p1', seat: 1, inviteToken: 'wrong' }), {
+    accepted: false,
+    reason: 'invalid-invite',
+  });
+  assert.deepEqual(allocateSeat(state, { playerId: 'p3', seat: 2, inviteToken: 'b' }), {
+    accepted: false,
+    reason: 'seat-taken',
+  });
+});
+
+test('rejects incomplete or duplicate seat invite bundles', () => {
+  const state = createRoomState('ABCD2345', 'host-1');
+  assert.throws(() => setRoomInvites(state, createInvites(['A', 'B', 'C', 'D'], ['a', 'a', 'c', 'd'])), /不能重复/);
+  assert.throws(() => setRoomInvites(state, [{ seat: 1, name: 'A', token: 'a' }]), /需要四个席位邀请/);
+});
+
 test('allocates four deterministic seats and rejects a fifth player', () => {
   const state = createRoomState('ABCD2345', 'host-1');
+  setRoomInvites(state, createInvites(defaultSeatNames(), ['a', 'b', 'c', 'd']));
   for (let seat = 1; seat <= 4; seat += 1) {
-    assert.deepEqual(allocateSeat(state, { id: `p${seat}`, name: `P${seat}` }), {
+    assert.deepEqual(allocateSeat(state, { playerId: `p${seat}`, seat, inviteToken: ['a', 'b', 'c', 'd'][seat - 1] }), {
       accepted: true,
       seat,
     });
   }
-  assert.deepEqual(allocateSeat(state, { id: 'p5', name: 'P5' }), {
+  assert.deepEqual(allocateSeat(state, { playerId: 'p5', seat: 1, inviteToken: 'a' }), {
     accepted: false,
-    reason: 'room-full',
+    reason: 'seat-taken',
   });
   assert.equal(state.players.size, 4);
 });
 
-test('allocates a seat from the playerId field used by join signals', () => {
+test('allocates a fixed seat from the playerId field used by join signals', () => {
   const state = createRoomState('ABCD2345', 'host-1');
+  setRoomInvites(state, createInvites(defaultSeatNames(), ['token-a', 'token-b', 'token-c', 'token-d']));
 
-  assert.deepEqual(allocateSeat(state, { playerId: 'p1', name: 'P1' }), {
+  assert.deepEqual(allocateSeat(state, { playerId: 'p1', seat: 1, inviteToken: 'token-a' }), {
     accepted: true,
     seat: 1,
   });
@@ -60,11 +103,12 @@ test('allocates a seat from the playerId field used by join signals', () => {
 
 test('releasing a player makes the lowest free seat reusable', () => {
   const state = createRoomState('ABCD2345', 'host-1');
-  allocateSeat(state, { id: 'p1', name: 'P1' });
-  allocateSeat(state, { id: 'p2', name: 'P2' });
+  setRoomInvites(state, createInvites(defaultSeatNames(), ['a', 'b', 'c', 'd']));
+  allocateSeat(state, { playerId: 'p1', seat: 1, inviteToken: 'a' });
+  allocateSeat(state, { playerId: 'p2', seat: 2, inviteToken: 'b' });
   assert.equal(releaseSeat(state, 'p1'), true);
   assert.equal(releaseSeat(state, 'missing'), false);
-  assert.deepEqual(allocateSeat(state, { id: 'p3', name: 'P3' }), {
+  assert.deepEqual(allocateSeat(state, { playerId: 'p3', seat: 1, inviteToken: 'a' }), {
     accepted: true,
     seat: 1,
   });

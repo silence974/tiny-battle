@@ -23,22 +23,32 @@
         <p>房主只负责协调建连，不占玩家席位。</p>
         <button id="start-host" class="primary">创建房间</button>
         <div id="host-panel" hidden>
-          <h3>房间码</h3>
-          <p>把这个房间码发给四位玩家：</p>
-          <strong id="host-room-code" class="room-code">—</strong>
-          <p id="host-waiting" class="hint">等待玩家加入。</p>
+          <h3>设置玩家昵称</h3>
+          <p>先设置四个席位的昵称，再生成一次性邀请链接。</p>
+          <div id="host-names" class="stack">
+            <label for="seat-name-1">席位 A</label>
+            <input id="seat-name-1" value="A" maxlength="20">
+            <label for="seat-name-2">席位 B</label>
+            <input id="seat-name-2" value="B" maxlength="20">
+            <label for="seat-name-3">席位 C</label>
+            <input id="seat-name-3" value="C" maxlength="20">
+            <label for="seat-name-4">席位 D</label>
+            <input id="seat-name-4" value="D" maxlength="20">
+          </div>
+          <button id="generate-invites" class="primary" disabled>生成 4 个玩家链接</button>
+          <div id="invite-panel" hidden>
+            <h3>玩家链接</h3>
+            <div id="invite-list" class="stack"></div>
+          </div>
+          <p id="host-waiting" class="hint">正在连接信令服务。</p>
         </div>
       </article>
 
-      <article id="player-card" class="card">
-        <h2>玩家</h2>
-        <label for="player-name">昵称</label>
-        <input id="player-name" placeholder="玩家名称" maxlength="20">
-        <label for="room-code">房间码</label>
-        <input id="room-code" placeholder="输入 8 位房间码" maxlength="16" autocomplete="off">
-        <button id="join-room" class="primary">加入房间</button>
+      <article id="player-card" class="card" hidden>
+        <h2>玩家席位</h2>
+        <p id="player-seat-label">正在读取邀请链接。</p>
         <div id="player-panel" hidden>
-          <p id="player-waiting" class="hint">正在等待主机完成连接。</p>
+          <p id="player-waiting" class="hint">正在自动加入席位。</p>
         </div>
       </article>
     </section>

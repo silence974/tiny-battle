@@ -1,11 +1,14 @@
 /* global VoteGame, Signaling, supabase, SUPABASE_CONFIG */
 
 (() => {
-  const { createState, createVoteEvent, applyEvent, mergeEvents, settle } = window.VoteGame;
+  const { createState, createVoteEvent, applyEvent, mergeEvents, settle, encodePayload, decodePayload, entryMode } = window.VoteGame;
   const {
     validateConfig,
     roomTopic,
+    defaultSeatNames,
+    createInvites,
     createRoomState,
+    setRoomInvites,
     allocateSeat,
     releaseSeat,
     makeSignal,
@@ -17,16 +20,19 @@
   const $ = (id) => document.getElementById(id);
   const ui = {
     role: $('role'), room: $('room'), status: $('status'), hostCard: $('host-card'), playerCard: $('player-card'),
-    hostPanel: $('host-panel'), playerPanel: $('player-panel'), gamePanel: $('game-panel'), hostRoomCode: $('host-room-code'),
-    hostWaiting: $('host-waiting'), playerName: $('player-name'), roomCode: $('room-code'), playerWaiting: $('player-waiting'),
-    startHost: $('start-host'), joinRoom: $('join-room'), roster: $('roster'), topology: $('topology'), result: $('result'),
+    hostPanel: $('host-panel'), playerPanel: $('player-panel'), gamePanel: $('game-panel'), hostWaiting: $('host-waiting'),
+    seatNames: [1, 2, 3, 4].map((seat) => $(`seat-name-${seat}`)),
+    generateInvites: $('generate-invites'), invitePanel: $('invite-panel'), inviteList: $('invite-list'),
+    playerWaiting: $('player-waiting'), playerSeatLabel: $('player-seat-label'), startHost: $('start-host'),
+    roster: $('roster'), topology: $('topology'), result: $('result'),
     voteA: $('vote-a'), voteB: $('vote-b'),
   };
   const localKey = 'mesh-vote-player-id';
   const state = {
-    role: null, room: null, hostId: null, playerId: null, playerName: '', seat: null,
+    role: null, room: null, hostId: null, playerId: null, playerName: '', seat: null, inviteToken: null,
     hostPeers: new Map(), peers: new Map(), players: new Map(), game: null, sequence: 0,
-    meshStarted: false, meshReady: false, roomState: null, signaling: null, signalCounter: 0, signalSeen: new Set(), joinWaiter: null,
+    meshStarted: false, meshReady: false, roomState: null, inviteBundle: null, signaling: null, signalCounter: 0,
+    signalSeen: new Set(), joinWaiter: null,
   };
 
   function randomId(prefix) {
@@ -44,11 +50,81 @@
     return id;
   }
 
-  function roomCode() {
+  function createRoomId() {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const bytes = new Uint8Array(8);
     crypto.getRandomValues(bytes);
     return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+  }
+
+  function hostInviteNames() {
+    const defaults = defaultSeatNames();
+    return ui.seatNames.map((input, index) => String(input?.value || '').trim() || defaults[index]);
+  }
+
+  async function inviteUrl(invite) {
+    const encoded = await encodePayload({
+      room: state.room,
+      seat: invite.seat,
+      name: invite.name,
+      token: invite.token,
+    });
+    const url = new URL(window.location.href);
+    url.hash = `join=${encoded}`;
+    return url.toString();
+  }
+
+  async function readInviteFromHash() {
+    if (entryMode(window.location.hash) !== 'player' || !window.location.hash.startsWith('#join=')) return null;
+    const invite = await decodePayload(window.location.hash.slice('#join='.length));
+    const seat = Number(invite?.seat);
+    if (!invite?.room || !Number.isInteger(seat) || seat < 1 || seat > PLAYER_COUNT || !invite?.name || !invite?.token) {
+      throw new Error('邀请链接无效，请向房主重新索取链接');
+    }
+    return { room: String(invite.room), seat, name: String(invite.name), token: String(invite.token) };
+  }
+
+  async function copyInvite(url, button) {
+    try {
+      await navigator.clipboard.writeText(url);
+      button.textContent = '已复制';
+      setTimeout(() => { button.textContent = '复制链接'; }, 1500);
+    } catch {
+      button.textContent = '请手动复制';
+    }
+  }
+
+  async function generateHostInvites() {
+    if (!state.roomState || !state.signaling) throw new Error('房间尚未准备好');
+    const names = hostInviteNames();
+    const tokens = names.map(() => randomId('invite'));
+    const invites = createInvites(names, tokens);
+    setRoomInvites(state.roomState, invites);
+    state.inviteBundle = invites;
+    ui.inviteList.replaceChildren();
+    for (const invite of invites) {
+      const row = document.createElement('div');
+      row.className = 'invite-row';
+      const label = document.createElement('label');
+      label.textContent = `席位 ${invite.name}`;
+      const controls = document.createElement('div');
+      controls.className = 'invite-controls';
+      const input = document.createElement('input');
+      input.readOnly = true;
+      input.value = await inviteUrl(invite);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = '复制链接';
+      button.onclick = () => copyInvite(input.value, button);
+      controls.append(input, button);
+      row.append(label, controls);
+      ui.inviteList.append(row);
+    }
+    for (const input of ui.seatNames) input.disabled = true;
+    ui.generateInvites.disabled = true;
+    ui.invitePanel.hidden = false;
+    ui.hostWaiting.textContent = '链接已生成；等待四位玩家点击各自链接。';
+    setStatus('四个玩家链接已生成。', 'ready');
   }
 
   function setStatus(message, tone = '') {
@@ -215,29 +291,33 @@
     }
   }
 
-  async function joinAsPlayer() {
-    const room = ui.roomCode.value.trim().toUpperCase();
-    if (!room) throw new Error('请输入房间码');
+  async function joinAsPlayer(invite) {
+    if (!invite) throw new Error('缺少邀请链接');
     state.role = 'player';
     state.playerId = localPlayerId();
-    state.playerName = ui.playerName.value.trim() || '未命名玩家';
-    setRoom(room);
-    ui.role.textContent = '玩家（等待入座）';
+    state.playerName = invite.name;
+    state.seat = invite.seat;
+    state.inviteToken = invite.token;
+    setRoom(invite.room);
+    ui.role.textContent = `玩家 ${invite.seat}`;
     ui.hostCard.hidden = true;
+    ui.playerCard.hidden = false;
     ui.playerPanel.hidden = false;
-    ui.joinRoom.disabled = true;
+    ui.playerSeatLabel.textContent = `席位 ${invite.name}，正在自动入座。`;
     setStatus('正在连接信令服务…');
     try {
       await startSignaling();
       const response = waitForJoinResponse();
-      await sendSignal({ type: 'join', payload: { playerId: state.playerId, name: state.playerName } });
-      ui.playerWaiting.textContent = '已申请入座，等待房主发送连接信息。';
-      setStatus('已申请入座，等待房主。', 'ready');
+      await sendSignal({
+        type: 'join',
+        payload: { playerId: state.playerId, name: state.playerName, seat: state.seat, inviteToken: state.inviteToken },
+      });
+      ui.playerWaiting.textContent = '已申请指定席位，等待房主发送连接信息。';
+      setStatus('已申请席位，等待房主。', 'ready');
       await response;
       setStatus('已找到房主，正在建立连接。', 'ready');
     } catch (error) {
       finishJoinWaiter(error);
-      ui.joinRoom.disabled = false;
       await stopSignaling(false);
       throw error;
     }
@@ -246,18 +326,19 @@
   async function startHost() {
     state.role = 'host';
     state.hostId = randomId('host');
-    setRoom(roomCode());
+    setRoom(createRoomId());
     state.roomState = createRoomState(state.room, state.hostId);
     ui.role.textContent = '房主（非投票席）';
     ui.hostPanel.hidden = false;
-    ui.playerCard.hidden = false;
+    ui.playerCard.hidden = true;
     ui.startHost.disabled = true;
-    ui.hostRoomCode.textContent = state.room;
+    ui.generateInvites.disabled = true;
     setStatus('正在连接信令服务…');
     try {
       await startSignaling();
-      ui.hostWaiting.textContent = '等待四位玩家输入房间码加入。';
-      setStatus('房间已创建，等待玩家加入。', 'ready');
+      ui.generateInvites.disabled = false;
+      ui.hostWaiting.textContent = '请设置四个昵称，然后生成玩家链接。';
+      setStatus('房间已创建，请设置昵称。', 'ready');
     } catch (error) {
       ui.startHost.disabled = false;
       await stopSignaling(false);
@@ -274,7 +355,8 @@
         await sendSignal({ to: signal.from, type: 'reject', payload: { reason: allocation.reason } });
         return;
       }
-      await createHostPeer(signal.from, signal.payload.name, allocation.seat);
+      const player = state.roomState.players.get(signal.from);
+      await createHostPeer(signal.from, player.name, allocation.seat);
       return;
     }
     if (signal.type === 'offer' && state.role === 'player' && signal.to === state.playerId) {
@@ -304,9 +386,13 @@
       return;
     }
     if (signal.type === 'reject' && state.role === 'player' && signal.to === state.playerId) {
-      const reason = signal.payload?.reason === 'room-full' ? '房间已满' : '房主拒绝了加入请求';
+      const reasons = {
+        'invalid-invite': '邀请链接无效，请向房主重新索取链接',
+        'seat-taken': '该席位已经有人入座，请使用其他席位链接',
+        'room-full': '四个席位都已有人入座',
+      };
+      const reason = reasons[signal.payload?.reason] || '房主拒绝了加入请求';
       finishJoinWaiter(new Error(reason));
-      ui.joinRoom.disabled = false;
       setStatus(reason, 'error');
       await stopSignaling(false);
       return;
@@ -507,12 +593,30 @@
   }
 
   ui.startHost.onclick = () => startHost().catch((error) => setStatus(error.message, 'error'));
-  ui.joinRoom.onclick = () => joinAsPlayer().catch((error) => setStatus(error.message, 'error'));
+  ui.generateInvites.onclick = () => generateHostInvites().catch((error) => setStatus(error.message, 'error'));
   ui.voteA.onclick = () => vote('A');
   ui.voteB.onclick = () => vote('B');
   window.addEventListener('beforeunload', () => {
     stopSignaling().catch((error) => log(`关闭信令失败：${error.message}`));
   });
-  ui.hostCard.hidden = false;
-  ui.playerCard.hidden = false;
+
+  async function initialize() {
+    if (entryMode(window.location.hash) === 'player') {
+      ui.hostCard.hidden = true;
+      ui.playerCard.hidden = false;
+      ui.playerPanel.hidden = false;
+      try {
+        const invite = await readInviteFromHash();
+        await joinAsPlayer(invite);
+      } catch (error) {
+        ui.playerWaiting.textContent = error.message;
+        setStatus(error.message, 'error');
+      }
+      return;
+    }
+    ui.hostCard.hidden = false;
+    ui.playerCard.hidden = true;
+  }
+
+  initialize();
 })();

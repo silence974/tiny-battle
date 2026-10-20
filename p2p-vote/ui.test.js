@@ -20,13 +20,16 @@ test('loads Supabase and signaling dependencies before the app', () => {
   assert.ok(signalingIndex < appIndex);
 });
 
-test('uses room-code controls instead of manual invite and answer controls', () => {
+test('uses four generated seat links instead of manual room-code controls', () => {
   const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 
-  assert.match(html, /id="room-code"/);
   assert.match(html, /id="start-host"/);
-  assert.match(html, /id="join-room"/);
-  assert.doesNotMatch(html, /id="invite-list"/);
+  assert.match(html, /id="generate-invites"/);
+  assert.match(html, /id="invite-list"/);
+  assert.match(html, /id="seat-name-1"/);
+  assert.match(html, /id="seat-name-4"/);
+  assert.doesNotMatch(html, /id="room-code"/);
+  assert.doesNotMatch(html, /id="join-room"/);
   assert.doesNotMatch(html, /id="answer-input"/);
   assert.doesNotMatch(html, /id="answer-link"/);
 });

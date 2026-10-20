@@ -1,6 +1,7 @@
 (() => {
   const PLAYER_COUNT = 4;
   const JOIN_TIMEOUT_MS = 10_000;
+  const SEAT_NAMES = ['A', 'B', 'C', 'D'];
 
   function fail(message) {
     return { ok: false, message };
@@ -26,13 +27,52 @@
     return `room:${String(room || '').trim()}`;
   }
 
+  function defaultSeatNames() {
+    return [...SEAT_NAMES];
+  }
+
+  function createInvites(names = defaultSeatNames(), tokens = []) {
+    if (!Array.isArray(names) || names.length !== PLAYER_COUNT) throw new Error('需要四个席位昵称');
+    if (!Array.isArray(tokens) || tokens.length !== PLAYER_COUNT) throw new Error('需要四个席位 token');
+    return names.map((rawName, index) => {
+      const name = String(rawName || '').trim() || SEAT_NAMES[index];
+      const token = String(tokens[index] || '').trim();
+      if (!token) throw new Error(`席位 ${index + 1} 缺少邀请 token`);
+      return { seat: index + 1, name, token };
+    });
+  }
+
   function createRoomState(room, hostId) {
     return {
       room,
       hostId,
       players: new Map(),
+      invites: new Map(),
       nextSeat: 1,
     };
+  }
+
+  function setRoomInvites(state, invites) {
+    if (!state || !Array.isArray(invites) || invites.length !== PLAYER_COUNT) {
+      throw new Error('需要四个席位邀请');
+    }
+    const seats = new Set();
+    const tokens = new Set();
+    const normalized = invites.map((invite) => {
+      const seat = Number(invite?.seat);
+      const name = String(invite?.name || '').trim();
+      const token = String(invite?.token || '').trim();
+      if (!Number.isInteger(seat) || seat < 1 || seat > PLAYER_COUNT || !name || !token) {
+        throw new Error('席位邀请格式无效');
+      }
+      if (seats.has(seat) || tokens.has(token)) throw new Error('席位邀请不能重复');
+      seats.add(seat);
+      tokens.add(token);
+      return { seat, name, token };
+    });
+    if (seats.size !== PLAYER_COUNT) throw new Error('席位邀请必须覆盖四个席位');
+    state.invites = new Map(normalized.map((invite) => [invite.seat, invite]));
+    return state;
   }
 
   function updateNextSeat(state) {
@@ -49,10 +89,15 @@
     const playerId = String(player?.playerId || player?.id || '').trim();
     if (!playerId) return { accepted: false, reason: 'invalid-player' };
     if (state.players.has(playerId)) return { accepted: false, reason: 'already-joined' };
-    updateNextSeat(state);
-    if (state.nextSeat > PLAYER_COUNT) return { accepted: false, reason: 'room-full' };
-    const seat = state.nextSeat;
-    state.players.set(playerId, { ...player, id: playerId, seat });
+    const seat = Number(player?.seat);
+    const invite = state.invites.get(seat);
+    if (!invite || invite.token !== String(player?.inviteToken || '').trim()) {
+      return { accepted: false, reason: 'invalid-invite' };
+    }
+    if ([...state.players.values()].some((candidate) => candidate.seat === seat)) {
+      return { accepted: false, reason: 'seat-taken' };
+    }
+    state.players.set(playerId, { ...player, id: playerId, name: invite.name, seat });
     updateNextSeat(state);
     return { accepted: true, seat };
   }
@@ -79,7 +124,10 @@
   const api = {
     validateConfig,
     roomTopic,
+    defaultSeatNames,
+    createInvites,
     createRoomState,
+    setRoomInvites,
     allocateSeat,
     releaseSeat,
     makeSignal,
