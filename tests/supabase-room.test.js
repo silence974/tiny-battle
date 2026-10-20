@@ -104,3 +104,94 @@ test('host command round trip accepts one pass from each fixed seat without clie
   assert.equal(game.seq, 4);
 });
 
+test('real transport broadcast loopback routes targeted state and commands for host plus four seats', async () => {
+  const channels = [];
+  const client = {
+    auth: { signInAnonymously: async () => ({ error: null }) },
+    channel(topic) {
+      const channel = {
+        topic,
+        handlers: [],
+        on(_kind, _filter, handler) { this.handlers.push(handler); return this; },
+        subscribe(callback) { callback('SUBSCRIBED'); return this; },
+        async send(message) {
+          for (const peer of channels.filter((candidate) => candidate.topic === topic)) {
+            for (const handler of peer.handlers) await handler({ payload: message.payload });
+          }
+          return 'ok';
+        },
+      };
+      channels.push(channel);
+      return channel;
+    },
+    async removeChannel(channel) { channels.splice(channels.indexOf(channel), 1); },
+  };
+  const config = { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' };
+  const roomState = room();
+  const snapshots = new Map();
+  const received = new Map();
+  let game = Engine.createGame({ seed: 12, players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, seat })) });
+  game.phase = 'action';
+  game.activeSeat = 1;
+  for (const player of game.players) { player.ap = 3; player.passed = false; }
+  let host;
+  const sendState = async (target, requestId) => host.send(Room.makeEnvelope({ room: roomState.room, type: 'state', from: 'host-1', to: target, requestId, seq: game.seq, payload: { snapshot: Engine.snapshot(game, Room.enginePlayerId(roomState.players.get(target).seat)) } }));
+  host = Room.createRoomTransport({ client, config, handlers: {
+    hello: async (message) => {
+      const join = message.payload;
+      const accepted = Room.requestSeat(roomState, { clientId: message.from, ...join });
+      assert.equal(accepted.accepted, true);
+      await sendState(message.from, message.requestId);
+    },
+    resync: async (message) => sendState(message.from, message.requestId),
+    command: async (message) => {
+      const player = roomState.players.get(message.from);
+      game = Engine.applyCommand(game, { seq: message.payload.seq, playerId: player.engineId, action: message.payload.action }).state;
+      for (const target of roomState.players.keys()) {
+        await sendState(target, target === message.from ? message.requestId : undefined);
+      }
+    },
+    leave: async (message) => { Room.releaseSeat(roomState, message.from); },
+  } });
+  await host.createRoom({ room: roomState.room, clientId: 'host-1', hostId: 'host-1', role: 'host' });
+  const players = [];
+  for (let seat = 1; seat <= 4; seat += 1) {
+    received.set(`client-${seat}`, []);
+    const transport = Room.createRoomTransport({ client, config, handlers: { state: (message) => { received.get(`client-${seat}`).push(message.payload.snapshot.seq); snapshots.set(`client-${seat}`, message.payload.snapshot); } } });
+    players.push({ seat, transport, clientId: `client-${seat}` });
+    await transport.join({ room: roomState.room, seat, token: `tok-${String.fromCharCode(96 + seat)}`, clientId: `client-${seat}`, name: `P${seat}` });
+  }
+  for (const player of players) {
+    await player.transport.sendCommand({ seq: game.seq, action: { type: 'pass' } });
+  }
+  assert.equal(game.seq, 4);
+  assert.equal(game.activeSeat, 1);
+  assert.equal(snapshots.size, 4);
+  assert.equal([...snapshots.values()].every((snapshot) => snapshot.seq === 4), true, JSON.stringify([...received.entries()]));
+  const resynced = await players[0].transport.requestSnapshot();
+  assert.equal(resynced.seq, 4);
+
+  await players[0].transport.leave();
+  assert.equal(roomState.players.has('client-1'), false);
+  const replacement = Room.createRoomTransport({ client, config, handlers: {
+    state: (message) => { snapshots.set('client-1-reconnected', message.payload.snapshot); },
+  } });
+  await replacement.join({ room: roomState.room, seat: 1, token: 'tok-a', clientId: 'client-1', name: 'P1 again' });
+  assert.equal(snapshots.get('client-1-reconnected').seq, 4);
+  await replacement.leave();
+});
+
+test('transport leave releases a seat so a refreshed client can reclaim the same invite', async () => {
+  const sent = [];
+  const channel = { on() { return this; }, subscribe(callback) { callback('SUBSCRIBED'); return this; }, async send(message) { sent.push(message.payload); return 'ok'; } };
+  const client = { auth: { signInAnonymously: async () => ({ error: null }) }, channel() { return channel; }, async removeChannel() {} };
+  const state = room();
+  const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
+  await transport.join({ room: state.room, seat: 1, token: 'tok-a', clientId: 'client-a', name: 'A' });
+  Room.requestSeat(state, { clientId: 'client-a', seat: 1, token: 'tok-a' });
+  await transport.leave();
+  assert.equal(sent.some((message) => message.type === 'leave' && message.from === 'client-a'), true);
+  assert.equal(Room.releaseSeat(state, 'client-a'), true);
+  assert.equal(Room.requestSeat(state, { clientId: 'client-b', seat: 1, token: 'tok-a' }).accepted, true);
+});
+

@@ -25,9 +25,9 @@ async function main() {
     publishableKey: value('--key', process.env.SUPABASE_PUBLISHABLE_KEY),
   };
   const link = value('--link', process.env.AGENT_LINK);
-  const clientId = value('--client', process.env.AGENT_CLIENT_ID || `agent-${process.pid}`);
+  const clientId = value('--client', process.env.AGENT_CLIENT_ID);
   const name = value('--name', process.env.AGENT_NAME || clientId);
-  if (!link || !config.url || !config.publishableKey) throw new Error('需要 --link、--url、--key，或对应环境变量');
+  if (!link || !clientId || !config.url || !config.publishableKey) throw new Error('需要 --link、--client、--url、--key，或对应环境变量');
   const transport = Room.createRoomTransport({ config, client: createClient(config.url, config.publishableKey) });
   const agent = createAgentClient({ transport, link, clientId, name });
   await agent.join();

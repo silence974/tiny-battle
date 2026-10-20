@@ -26,6 +26,14 @@
     sessionStorage.setItem(key, value);
     return value;
   }
+  function persistentSeatIdentity(room, seat) {
+    const key = `tiny-battle-312-seat-${room}-${seat}`;
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+    const value = `browser-${Math.random().toString(36).slice(2, 12)}`;
+    localStorage.setItem(key, value);
+    return value;
+  }
   function roomCode() { return Math.random().toString(36).slice(2, 10).toUpperCase(); }
   function baseUrl() { return `${location.origin}${location.pathname}`; }
 
@@ -163,6 +171,13 @@
 
   async function onResync(message) { await sendRoster(message.from); await broadcastState(message.from, message.requestId); }
 
+  async function onLeave(message) {
+    if (Room.releaseSeat(state.roomState, message.from)) {
+      await sendRoster();
+      publishDebug();
+    }
+  }
+
   async function startHost() {
     setError(null);
     state.mode = 'host';
@@ -177,6 +192,7 @@
         hello: onHello,
         command: acceptPlayerCommand,
         resync: onResync,
+        leave: onLeave,
       },
     });
     try {
@@ -201,7 +217,7 @@
       const seat = Room.parseSeatFragment(new URL(link).hash);
       state.room = seat.room;
       state.enginePlayerId = Room.enginePlayerId(seat.seat);
-      state.clientId = `${seat.room}-seat-${seat.seat}-${id()}`;
+      state.clientId = `${seat.room}-seat-${seat.seat}-${persistentSeatIdentity(seat.room, seat.seat)}`;
       state.transport = Room.createRoomTransport({
         config,
         handlers: {
@@ -266,5 +282,8 @@
   $('create-room').addEventListener('click', startHost);
   $('join-room').addEventListener('click', startPlayer);
   $('advance-phase').addEventListener('click', advanceHost);
+  window.addEventListener('pagehide', () => {
+    if (state.mode === 'player' && state.transport) state.transport.leave();
+  });
   showMode(state.mode);
 })();

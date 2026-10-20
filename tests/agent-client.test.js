@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const Room = require('../supabase-room');
 const { createAgentClient } = require('../agent-client');
@@ -35,5 +37,12 @@ test('agent client rejects malformed seat fragments before transport access', as
 
 test('room parser is shared by Agent and browser links', () => {
   assert.deepEqual(Room.parseSeatFragment('#r=ROOM&s=4&t=secret'), { room: 'ROOM', seat: 4, token: 'secret' });
+});
+
+test('local Agent entrypoint requires a stable reconnect identity', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '..', 'agent-example.js'), 'utf8');
+  assert.match(source, /AGENT_CLIENT_ID/);
+  assert.match(source, /需要 --link、--client、--url、--key/);
+  assert.doesNotMatch(source, /agent-\$\{process\.pid\}/);
 });
 

@@ -126,7 +126,7 @@
     if (envelope.room !== context.room) return { accepted: false, reason: 'wrong-room' };
     if (envelope.to && envelope.to !== context.localId) return { accepted: false, reason: 'wrong-target' };
     if (seen.has(envelope.requestId)) return { accepted: false, reason: 'duplicate' };
-    if (envelope.type === 'state' && Number.isInteger(context.lastSeq) && envelope.seq <= context.lastSeq) return { accepted: false, reason: 'stale-sequence' };
+    if (envelope.type === 'state' && Number.isInteger(context.lastSeq) && envelope.seq < context.lastSeq) return { accepted: false, reason: 'stale-sequence' };
     seen.add(envelope.requestId);
     return { accepted: true };
   }
@@ -157,6 +157,7 @@
     }
 
     function handle(payload) {
+      if (payload?.type === 'state' && payload.from) context.hostId = payload.from;
       const verdict = acceptEnvelope(seen, payload, context);
       if (!verdict.accepted) return;
       if (payload.type === 'state' && Number.isInteger(payload.seq)) context.lastSeq = payload.seq;
@@ -172,7 +173,7 @@
 
     async function joinRoom(joinOptions) {
       const supabase = await ensureClient();
-      context = { ...joinOptions, room: String(joinOptions.room), lastSeq: 0 };
+      context = { ...joinOptions, room: String(joinOptions.room), localId: String(joinOptions.clientId), lastSeq: 0 };
       channel = supabase.channel(roomTopic(context.room), { config: { private: true } });
       channel.on('broadcast', { event: 'game312' }, ({ payload }) => handle(payload));
       await new Promise((resolve, reject) => {
@@ -181,7 +182,9 @@
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Supabase channel ${status}`));
         });
       });
-      await send(makeEnvelope({ room: context.room, type: 'hello', from: context.clientId, to: context.hostId || null, payload: { seat: context.seat, token: context.token, name: context.name } }));
+      if (context.role !== 'host') {
+        await send(makeEnvelope({ room: context.room, type: 'hello', from: context.clientId, to: context.hostId || null, payload: { seat: context.seat, token: context.token, name: context.name } }));
+      }
       return context;
     }
 
@@ -199,11 +202,18 @@
         }, 10_000);
         waiters.set(requestId, { resolve: (value) => { clearTimeout(timer); resolve(value); }, reject: (error) => { clearTimeout(timer); reject(error); } });
       });
-      await send(makeEnvelope({ room: context.room, type: 'resync', from: context.clientId, to: context.hostId, requestId, seq: context.lastSeq, payload: {} }));
+      await send(makeEnvelope({ room: context.room, type: 'resync', from: context.clientId, to: context.hostId || null, requestId, seq: context.lastSeq, payload: {} }));
       return pending;
     }
 
     async function close() {
+      if (channel && context) {
+        try {
+          await send(makeEnvelope({ room: context.room, type: 'leave', from: context.clientId, payload: {} }));
+        } catch {
+          // Cleanup must still detach the channel when the network is already gone.
+        }
+      }
       if (channel && client?.removeChannel) await client.removeChannel(channel);
       channel = null;
       context = null;
@@ -218,7 +228,7 @@
         }, 10_000);
         waiters.set(requestId, { resolve: (value) => { clearTimeout(timer); resolve(value); }, reject: (error) => { clearTimeout(timer); reject(error); } });
       });
-      await send(makeEnvelope({ room: context.room, type: 'command', from: context.clientId, to: context.hostId, seq: command.seq, requestId, payload: command }));
+      await send(makeEnvelope({ room: context.room, type: 'command', from: context.clientId, to: context.hostId || null, seq: command.seq, requestId, payload: command }));
       return pending;
     }
 

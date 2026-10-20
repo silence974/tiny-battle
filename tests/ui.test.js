@@ -47,3 +47,11 @@ test('browser scripts pass syntax checks and debug page is self-contained', () =
   assert.match(read('app.js'), /Room\.enginePlayerId/);
 });
 
+test('browser reconnect identity is persisted per room and seat', () => {
+  const app = read('app.js');
+  assert.match(app, /localStorage/);
+  assert.match(app, /seat-\$\{seat\.seat\}/);
+  assert.match(app, /async function onLeave/);
+  assert.match(app, /pagehide/);
+});
+
