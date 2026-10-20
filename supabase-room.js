@@ -152,6 +152,8 @@
       if (client.auth?.signInAnonymously) {
         const result = await client.auth.signInAnonymously();
         if (result.error) throw new Error(`Supabase 匿名登录失败: ${result.error.message}`);
+        const accessToken = result.data?.session?.access_token;
+        if (accessToken && client.realtime?.setAuth) client.realtime.setAuth(accessToken);
       }
       return client;
     }

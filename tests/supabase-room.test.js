@@ -104,6 +104,25 @@ test('host command round trip accepts one pass from each fixed seat without clie
   assert.equal(game.seq, 4);
 });
 
+test('anonymous session JWT is forwarded to Supabase Realtime auth', async () => {
+  let realtimeToken = null;
+  const channel = {
+    on() { return this; },
+    subscribe(callback) { callback('SUBSCRIBED'); return this; },
+    async send() { return 'ok'; },
+  };
+  const client = {
+    auth: { signInAnonymously: async () => ({ data: { session: { access_token: 'jwt-anonymous-test' } }, error: null }) },
+    realtime: { setAuth(token) { realtimeToken = token; } },
+    channel() { return channel; },
+    async removeChannel() {},
+  };
+  const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
+  await transport.join({ room: 'ABCD2345', seat: 1, token: 'tok-a', clientId: 'client-a', name: 'A' });
+  assert.equal(realtimeToken, 'jwt-anonymous-test');
+  await transport.leave();
+});
+
 test('real transport broadcast loopback routes targeted state and commands for host plus four seats', async () => {
   const channels = [];
   const client = {
