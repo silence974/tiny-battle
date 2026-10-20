@@ -48,6 +48,16 @@ test('allocates four deterministic seats and rejects a fifth player', () => {
   assert.equal(state.players.size, 4);
 });
 
+test('allocates a seat from the playerId field used by join signals', () => {
+  const state = createRoomState('ABCD2345', 'host-1');
+
+  assert.deepEqual(allocateSeat(state, { playerId: 'p1', name: 'P1' }), {
+    accepted: true,
+    seat: 1,
+  });
+  assert.equal(state.players.has('p1'), true);
+});
+
 test('releasing a player makes the lowest free seat reusable', () => {
   const state = createRoomState('ABCD2345', 'host-1');
   allocateSeat(state, { id: 'p1', name: 'P1' });

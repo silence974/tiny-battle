@@ -46,12 +46,13 @@
   }
 
   function allocateSeat(state, player) {
-    if (!player || !String(player.id || '').trim()) return { accepted: false, reason: 'invalid-player' };
-    if (state.players.has(player.id)) return { accepted: false, reason: 'already-joined' };
+    const playerId = String(player?.playerId || player?.id || '').trim();
+    if (!playerId) return { accepted: false, reason: 'invalid-player' };
+    if (state.players.has(playerId)) return { accepted: false, reason: 'already-joined' };
     updateNextSeat(state);
     if (state.nextSeat > PLAYER_COUNT) return { accepted: false, reason: 'room-full' };
     const seat = state.nextSeat;
-    state.players.set(player.id, { ...player, seat });
+    state.players.set(playerId, { ...player, id: playerId, seat });
     updateNextSeat(state);
     return { accepted: true, seat };
   }
