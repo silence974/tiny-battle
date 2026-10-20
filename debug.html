@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tiny Battle 312 — 四席视角</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar"><h1>四席视角 / 调试（host-only）</h1><span id="debug-status">连接主机中…</span></header>
+  <main>
+    <p id="debug-error" class="error" role="alert"></p>
+    <section id="debug-seats" class="debug-grid">
+      <section class="card seat-panel" id="seat-panel-1"><h2>P1</h2><div class="seat-state"></div><div class="seat-actions"></div><button class="generate-seat-link" data-seat="1">生成 P1 短链接</button></section>
+      <section class="card seat-panel" id="seat-panel-2"><h2>P2</h2><div class="seat-state"></div><div class="seat-actions"></div><button class="generate-seat-link" data-seat="2">生成 P2 短链接</button></section>
+      <section class="card seat-panel" id="seat-panel-3"><h2>P3</h2><div class="seat-state"></div><div class="seat-actions"></div><button class="generate-seat-link" data-seat="3">生成 P3 短链接</button></section>
+      <section class="card seat-panel" id="seat-panel-4"><h2>P4</h2><div class="seat-state"></div><div class="seat-actions"></div><button class="generate-seat-link" data-seat="4">生成 P4 短链接</button></section>
+    </section>
+  </main>
+  <script src="supabase-room.js"></script>
+  <script src="debug.js"></script>
+</body>
+</html>
