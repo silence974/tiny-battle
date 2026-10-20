@@ -134,6 +134,7 @@
     let client = options.client || null;
     let context = null;
     const seen = new Set();
+    const waiters = new Map();
     const handlers = options.handlers || {};
 
     async function ensureClient() {
@@ -153,6 +154,12 @@
       const verdict = acceptEnvelope(seen, payload, context);
       if (!verdict.accepted) return;
       if (payload.type === 'state' && Number.isInteger(payload.seq)) context.lastSeq = payload.seq;
+      const waiter = waiters.get(payload.requestId);
+      if (waiter) {
+        waiters.delete(payload.requestId);
+        if (payload.type === 'reject') waiter.reject(new Error(payload.reason || 'command rejected'));
+        else waiter.resolve(payload.payload?.snapshot || payload.payload || payload);
+      }
       const handler = handlers[payload.type] || handlers.message;
       if (handler) handler(payload);
     }
@@ -178,7 +185,16 @@
     }
 
     async function requestSnapshot() {
-      return send(makeEnvelope({ room: context.room, type: 'resync', from: context.clientId, to: context.hostId, seq: context.lastSeq, payload: {} }));
+      const requestId = token();
+      const pending = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          waiters.delete(requestId);
+          reject(new Error('resync timeout'));
+        }, 10_000);
+        waiters.set(requestId, { resolve: (value) => { clearTimeout(timer); resolve(value); }, reject: (error) => { clearTimeout(timer); reject(error); } });
+      });
+      await send(makeEnvelope({ room: context.room, type: 'resync', from: context.clientId, to: context.hostId, requestId, seq: context.lastSeq, payload: {} }));
+      return pending;
     }
 
     async function close() {
@@ -188,7 +204,16 @@
     }
 
     async function sendCommand(command) {
-      return send(makeEnvelope({ room: context.room, type: 'command', from: context.clientId, to: context.hostId, seq: command.seq, requestId: command.requestId, payload: command }));
+      const requestId = command.requestId || token();
+      const pending = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          waiters.delete(requestId);
+          reject(new Error('command timeout'));
+        }, 10_000);
+        waiters.set(requestId, { resolve: (value) => { clearTimeout(timer); resolve(value); }, reject: (error) => { clearTimeout(timer); reject(error); } });
+      });
+      await send(makeEnvelope({ room: context.room, type: 'command', from: context.clientId, to: context.hostId, seq: command.seq, requestId, payload: command }));
+      return pending;
     }
 
     return {
