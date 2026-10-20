@@ -85,9 +85,24 @@ test('mesh pairing returns every direct player-to-player edge exactly once', () 
   ]);
 });
 
-test('signal payloads survive URL-safe encoding', () => {
+test('signal payloads survive URL-safe encoding', async () => {
   const payload = { room: 'AB12-CD34', seat: 3, offer: { type: 'offer', sdp: 'a+b/中文' } };
-  assert.deepEqual(decodePayload(encodePayload(payload)), payload);
+  assert.deepEqual(await decodePayload(await encodePayload(payload)), payload);
+});
+
+test('compressed payloads shorten SDP and keep legacy links readable', async () => {
+  const payload = {
+    room: 'AB12-CD34',
+    seat: 3,
+    offer: { type: 'offer', sdp: 'candidate:'.repeat(180) + 'a+b/中文' },
+  };
+  const legacy = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const encoded = await encodePayload(payload);
+
+  assert.match(encoded, /^c\./);
+  assert.ok(encoded.length < legacy.length);
+  assert.deepEqual(await decodePayload(encoded), payload);
+  assert.deepEqual(await decodePayload(legacy), payload);
 });
 
 test('answer import is accepted once and rejects duplicate or invalid signaling states', () => {

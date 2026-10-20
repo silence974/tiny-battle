@@ -82,9 +82,19 @@
     return pairs;
   }
 
-  function encodePayload(payload) {
-    const text = JSON.stringify(payload);
-    const bytes = new TextEncoder().encode(text);
+  async function transformBytes(bytes, StreamConstructor, format) {
+    if (typeof StreamConstructor !== 'function' || typeof Blob !== 'function' || typeof Response !== 'function') {
+      return null;
+    }
+    try {
+      const stream = new Blob([bytes]).stream().pipeThrough(new StreamConstructor(format));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    } catch {
+      return null;
+    }
+  }
+
+  function encodeBase64Url(bytes) {
     let binary = '';
     for (const byte of bytes) binary += String.fromCharCode(byte);
     const base64 = typeof btoa === 'function'
@@ -93,14 +103,28 @@
     return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   }
 
-  function decodePayload(encoded) {
+  function decodeBase64Url(encoded) {
     const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - encoded.length % 4) % 4);
-    let bytes;
     if (typeof atob === 'function') {
       const binary = atob(base64);
-      bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    } else {
-      bytes = Uint8Array.from(Buffer.from(base64, 'base64'));
+      return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    }
+    return Uint8Array.from(Buffer.from(base64, 'base64'));
+  }
+
+  async function encodePayload(payload) {
+    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    const compressed = await transformBytes(bytes, globalThis.CompressionStream, 'deflate');
+    return `${compressed ? 'c.' : 'j.'}${encodeBase64Url(compressed || bytes)}`;
+  }
+
+  async function decodePayload(encoded) {
+    const compressed = encoded.startsWith('c.');
+    const body = encoded.startsWith('c.') || encoded.startsWith('j.') ? encoded.slice(2) : encoded;
+    let bytes = decodeBase64Url(body);
+    if (compressed) {
+      bytes = await transformBytes(bytes, globalThis.DecompressionStream, 'deflate');
+      if (!bytes) throw new Error('当前浏览器不支持压缩邀请链接');
     }
     return JSON.parse(new TextDecoder().decode(bytes));
   }

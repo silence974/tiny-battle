@@ -30,7 +30,6 @@
     playerInvite: $('player-invite'),
     roster: $('roster'),
     topology: $('topology'),
-    eventLog: $('event-log'),
     result: $('result'),
     voteA: $('vote-a'),
     voteB: $('vote-b'),
@@ -51,6 +50,7 @@
     sequence: 0,
     invites: [],
     meshStarted: false,
+    meshReady: false,
   };
 
   function randomId(prefix) {
@@ -81,9 +81,7 @@
   }
 
   function log(message) {
-    const line = document.createElement('div');
-    line.textContent = `${new Date().toLocaleTimeString()}  ${message}`;
-    ui.eventLog.prepend(line);
+    console.info('[mesh-vote]', message);
   }
 
   function waitIceComplete(pc, timeoutMs = 6000) {
@@ -105,16 +103,16 @@
     });
   }
 
-  function makeLink(kind, payload) {
-    return `${location.origin}${location.pathname}#${kind}=${encodePayload(payload)}`;
+  async function makeLink(kind, payload) {
+    return `${location.origin}${location.pathname}#${kind}=${await encodePayload(payload)}`;
   }
 
-  function decodeTextOrUrl(raw) {
+  async function decodeTextOrUrl(raw) {
     const text = raw.trim();
     const marker = text.includes('#') ? text.slice(text.indexOf('#') + 1) : text;
     const [kind, encoded] = marker.split('=', 2);
     if (!encoded || !['join', 'answer'].includes(kind)) throw new Error('不是有效的邀请或回答链接');
-    return { kind, payload: decodePayload(encoded) };
+    return { kind, payload: await decodePayload(encoded) };
   }
 
   function send(entry, message) {
@@ -178,7 +176,7 @@
       seat,
       offer: pc.localDescription,
     };
-    return { seat, url: makeLink('join', payload) };
+    return { seat, url: await makeLink('join', payload) };
   }
 
   async function startHost() {
@@ -213,7 +211,7 @@
   }
 
   async function importAnswer(raw) {
-    const { kind, payload } = decodeTextOrUrl(raw);
+    const { kind, payload } = await decodeTextOrUrl(raw);
     if (kind !== 'answer' || payload.room !== state.room) throw new Error('answer 不属于当前房间');
     const entry = state.hostPeers.get(Number(payload.seat));
     if (!entry) throw new Error('找不到对应席位');
@@ -237,7 +235,7 @@
   }
 
   async function joinFromInput(raw) {
-    const { kind, payload } = decodeTextOrUrl(raw);
+    const { kind, payload } = await decodeTextOrUrl(raw);
     if (kind !== 'join') throw new Error('这里需要主机邀请链接');
     state.role = 'player';
     state.room = payload.room;
@@ -266,7 +264,7 @@
       name: state.playerName,
       answer: pc.localDescription,
     };
-    const link = makeLink('answer', answerPayload);
+    const link = await makeLink('answer', answerPayload);
     ui.answerLink.value = link;
     ui.answerBox.hidden = false;
     setStatus('已生成 answer：复制回主机，等待连接建立。', 'ready');
@@ -448,9 +446,23 @@
   }
 
   function renderTopology() {
-    const open = [...state.peers.values()].filter((entry) => entry.channel?.readyState === 'open').length;
-    const total = state.role === 'host' ? state.hostPeers.size : state.peers.size;
-    ui.topology.textContent = `直连 ${open}/${total} · 主机仅负责初始信令，中继完成后玩家可直接互通`;
+    if (state.role === 'player') {
+      const directOpen = [...state.peers.values()].filter((entry) => entry.kind === 'mesh' && entry.channel?.readyState === 'open').length;
+      const directTotal = PLAYER_COUNT - 1;
+      const ready = state.players.size === PLAYER_COUNT && directOpen === directTotal;
+      ui.topology.textContent = ready
+        ? `玩家直连 ${directOpen}/${directTotal} · 可关闭主机`
+        : `玩家直连 ${directOpen}/${directTotal} · ${directOpen === directTotal ? '等待玩家名单' : '保持主机打开'}`;
+      if (ready && !state.meshReady) {
+        state.meshReady = true;
+        setStatus('直连完成，可关闭主机。', 'ready');
+      } else if (!ready) {
+        state.meshReady = false;
+      }
+      return;
+    }
+    const open = [...state.hostPeers.values()].filter((entry) => entry.channel?.readyState === 'open').length;
+    ui.topology.textContent = `主机连接 ${open}/${PLAYER_COUNT}`;
   }
 
   function renderGame() {

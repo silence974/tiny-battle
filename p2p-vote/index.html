@@ -9,9 +9,7 @@
 <body>
   <main class="shell">
     <header class="hero">
-      <p class="eyebrow">NO BACKEND · WEBRTC MESH PROTOTYPE</p>
-      <h1>MESH / VOTE</h1>
-      <p class="lede">一次性四人投票实验。主机只负责初始信令，投票事件在玩家之间直接扩散。</p>
+      <h1>四人投票</h1>
       <div class="statusbar">
         <span id="role">尚未加入</span>
         <span>房间 <strong id="room">—</strong></span>
@@ -19,54 +17,38 @@
       </div>
     </header>
 
-    <section class="card intro">
-      <div>
-        <p class="section-kicker">HOW IT WORKS</p>
-        <h2>只验证一件事：四个浏览器能否互相投票。</h2>
-        <p>本页面不使用 STUN/TURN，因此最适合在同一 Wi‑Fi 或局域网中测试。主机生成 4 个邀请链接，玩家打开后各自生成 answer 链接回传；连接建立后，程序自动协商玩家之间的直连。</p>
-      </div>
-      <div class="facts">
-        <span>5 个节点</span><span>10 条网状边</span><span>0 个游戏服务器</span>
-      </div>
-    </section>
-
     <section class="grid setup-grid">
       <article class="card">
-        <p class="section-kicker">COORDINATOR</p>
-        <h2>创建房间</h2>
-        <p>主机不占玩家席位，只负责生成邀请和在开局阶段转发握手信令。</p>
+        <h2>主机</h2>
         <button id="start-host" class="primary">生成 4 个邀请</button>
         <div id="host-panel" hidden>
-          <h3>发给四位玩家</h3>
+          <h3>邀请</h3>
           <div id="invite-list" class="stack"></div>
-          <label for="answer-input">导入玩家回传的 answer 链接</label>
-          <textarea id="answer-input" rows="4" placeholder="把玩家发回的 answer 链接粘贴到这里"></textarea>
-          <button id="import-answer">导入 answer</button>
+          <label for="answer-input">玩家 answer</label>
+          <textarea id="answer-input" rows="3" placeholder="粘贴 answer 链接"></textarea>
+          <button id="import-answer">导入</button>
         </div>
       </article>
 
       <article class="card">
-        <p class="section-kicker">PLAYER</p>
-        <h2>加入房间</h2>
+        <h2>玩家</h2>
         <label for="player-name">昵称</label>
-        <input id="player-name" placeholder="例如：勇者 A" maxlength="20">
-        <label for="player-invite">主机邀请链接</label>
-        <textarea id="player-invite" rows="5" placeholder="粘贴主机生成的邀请链接"></textarea>
-        <button id="join-game" class="primary">生成我的 answer</button>
+        <input id="player-name" placeholder="玩家名称" maxlength="20">
+        <label for="player-invite">邀请链接</label>
+        <textarea id="player-invite" rows="3" placeholder="粘贴邀请链接"></textarea>
+        <button id="join-game" class="primary">生成 answer</button>
         <div id="player-panel" hidden>
-          <label for="answer-link">把这个 answer 链接发回主机</label>
-          <textarea id="answer-link" rows="5" readonly></textarea>
-          <button id="copy-answer">复制 answer 链接</button>
-          <p id="answer-box" class="hint" hidden>等待主机导入后，连接会自动打开。</p>
+          <label for="answer-link">回传给主机</label>
+          <textarea id="answer-link" rows="3" readonly></textarea>
+          <button id="copy-answer">复制</button>
+          <p id="answer-box" class="hint" hidden>等待连接</p>
         </div>
       </article>
     </section>
 
     <section id="game-panel" class="grid game-grid" hidden>
       <article class="card vote-card">
-        <p class="section-kicker">ROUND 01</p>
-        <h2>你支持哪一边？</h2>
-        <p>每位玩家只能投一次。四票收齐后，所有节点独立计算结果。</p>
+        <h2>投票</h2>
         <div class="vote-buttons">
           <button id="vote-a" class="choice-a" disabled>A 阵营</button>
           <button id="vote-b" class="choice-b" disabled>B 阵营</button>
@@ -74,20 +56,10 @@
         <div id="result" class="result">等待玩家连接。</div>
       </article>
       <aside class="card telemetry">
-        <p class="section-kicker">LIVE STATE</p>
-        <h2>网状状态</h2>
-        <p id="topology" class="topology">直连 0/0</p>
-        <h3>玩家</h3>
+        <p id="topology" class="topology">连接 0/0</p>
         <ul id="roster" class="roster"></ul>
-        <h3>事件日志</h3>
-        <div id="event-log" class="event-log"></div>
       </aside>
     </section>
-
-    <footer>
-      <span>静态页面 · 手工信令 · WebRTC DataChannel</span>
-      <span>关闭主机后，已建立的玩家直连不会依赖主机。</span>
-    </footer>
   </main>
   <script src="game.js"></script>
   <script src="app.js"></script>
