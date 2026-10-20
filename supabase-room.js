@@ -142,6 +142,7 @@
     const seen = new Set();
     const waiters = new Map();
     const handlers = options.handlers || {};
+    let joinReady = null;
 
     async function ensureClient() {
       const config = options.config || globalScope?.SUPABASE_CONFIG;
@@ -159,10 +160,17 @@
     }
 
     function handle(payload) {
+      if (payload?.from === context?.localId) return;
       if (payload?.type === 'state' && payload.from) context.hostId = payload.from;
       const verdict = acceptEnvelope(seen, payload, context);
       if (!verdict.accepted) return;
       if (payload.type === 'state' && Number.isInteger(payload.seq)) context.lastSeq = payload.seq;
+      if (joinReady && payload.requestId === joinReady.requestId) {
+        const pending = joinReady;
+        joinReady = null;
+        if (payload.type === 'reject') pending.reject(new Error(payload.payload?.reason || payload.reason || 'join rejected'));
+        else if (payload.type === 'state') pending.resolve(payload.payload?.snapshot || payload.payload || payload);
+      }
       const waiter = waiters.get(payload.requestId);
       if (waiter) {
         waiters.delete(payload.requestId);
@@ -185,7 +193,24 @@
         });
       });
       if (context.role !== 'host') {
-        await send(makeEnvelope({ room: context.room, type: 'hello', from: context.clientId, to: context.hostId || null, payload: { seat: context.seat, token: context.token, name: context.name } }));
+        const requestId = token();
+        const ready = new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            if (joinReady?.requestId === requestId) joinReady = null;
+            reject(new Error('join confirmation timeout'));
+          }, 10_000);
+          joinReady = {
+            requestId,
+            resolve: (value) => { clearTimeout(timer); resolve(value); },
+            reject: (error) => { clearTimeout(timer); reject(error); },
+          };
+        });
+        try {
+          await send(makeEnvelope({ room: context.room, type: 'hello', from: context.clientId, to: context.hostId || null, requestId, payload: { seat: context.seat, token: context.token, name: context.name } }));
+          await ready;
+        } finally {
+          if (joinReady?.requestId === requestId) joinReady = null;
+        }
       }
       return context;
     }
@@ -209,6 +234,10 @@
     }
 
     async function close() {
+      if (joinReady) {
+        joinReady.reject(new Error('room closed during join'));
+        joinReady = null;
+      }
       if (channel && context) {
         try {
           await send(makeEnvelope({ room: context.room, type: 'leave', from: context.clientId, payload: {} }));

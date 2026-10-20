@@ -169,7 +169,14 @@
     publishDebug();
   }
 
-  async function onResync(message) { await sendRoster(message.from); await broadcastState(message.from, message.requestId); }
+  async function onResync(message) {
+    if (!state.roomState.players.has(message.from)) {
+      await sendEnvelope(Room.makeEnvelope({ room: state.room, type: 'reject', from: state.hostId, to: message.from, requestId: message.requestId, payload: { reason: 'seat-not-ready' } }));
+      return;
+    }
+    await sendRoster(message.from);
+    await broadcastState(message.from, message.requestId);
+  }
 
   async function onLeave(message) {
     if (Room.releaseSeat(state.roomState, message.from)) {

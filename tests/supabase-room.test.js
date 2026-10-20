@@ -118,9 +118,60 @@ test('anonymous session JWT is forwarded to Supabase Realtime auth', async () =>
     async removeChannel() {},
   };
   const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
-  await transport.join({ room: 'ABCD2345', seat: 1, token: 'tok-a', clientId: 'client-a', name: 'A' });
+  await transport.join({ room: 'ABCD2345', seat: 1, token: 'tok-a', clientId: 'client-a', name: 'A', role: 'host' });
   assert.equal(realtimeToken, 'jwt-anonymous-test');
   await transport.leave();
+});
+
+test('player join waits for the host seat confirmation snapshot', async () => {
+  const channels = [];
+  const client = {
+    auth: { signInAnonymously: async () => ({ error: null }) },
+    channel(topic) {
+      const channel = {
+        topic,
+        handlers: [],
+        on(_kind, _filter, handler) { this.handlers.push(handler); return this; },
+        subscribe(callback) { callback('SUBSCRIBED'); return this; },
+        send(message) {
+          for (const peer of channels.filter((candidate) => candidate.topic === topic)) {
+            for (const handler of peer.handlers) Promise.resolve().then(() => handler({ payload: message.payload }));
+          }
+          return 'ok';
+        },
+      };
+      channels.push(channel);
+      return channel;
+    },
+    async removeChannel(channel) { channels.splice(channels.indexOf(channel), 1); },
+  };
+  let releaseState;
+  const stateReady = new Promise((resolve) => { releaseState = resolve; });
+  let helloReceived;
+  const helloSeen = new Promise((resolve) => { helloReceived = resolve; });
+  let host;
+  const roomState = room();
+  host = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' }, handlers: {
+    hello: async (message) => {
+      const result = Room.requestSeat(roomState, { clientId: message.from, ...message.payload });
+      assert.equal(result.accepted, true);
+      helloReceived();
+      await stateReady;
+      await host.send(Room.makeEnvelope({ room: roomState.room, type: 'state', from: 'host-1', to: message.from, requestId: message.requestId, seq: 0, payload: { snapshot: { seq: 0 } } }));
+    },
+  } });
+  await host.createRoom({ room: roomState.room, clientId: 'host-1', hostId: 'host-1', role: 'host' });
+  const player = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
+  let joined = false;
+  const joining = player.join({ room: roomState.room, seat: 1, token: 'tok-a', clientId: 'client-a', name: 'A' }).then(() => { joined = true; });
+  await helloReceived;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(joined, false);
+  releaseState();
+  await joining;
+  assert.equal(joined, true);
+  await player.leave();
+  await host.leave();
 });
 
 test('real transport broadcast loopback routes targeted state and commands for host plus four seats', async () => {
@@ -206,7 +257,7 @@ test('transport leave releases a seat so a refreshed client can reclaim the same
   const client = { auth: { signInAnonymously: async () => ({ error: null }) }, channel() { return channel; }, async removeChannel() {} };
   const state = room();
   const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
-  await transport.join({ room: state.room, seat: 1, token: 'tok-a', clientId: 'client-a', name: 'A' });
+  await transport.join({ room: state.room, seat: 1, token: 'tok-a', clientId: 'client-a', name: 'A', role: 'host' });
   Room.requestSeat(state, { clientId: 'client-a', seat: 1, token: 'tok-a' });
   await transport.leave();
   assert.equal(sent.some((message) => message.type === 'leave' && message.from === 'client-a'), true);
