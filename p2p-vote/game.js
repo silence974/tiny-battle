@@ -77,6 +77,11 @@
     return hash.startsWith('#join=') || hash.startsWith('#answer=') ? 'player' : 'host';
   }
 
+  function roomMismatchMessage(currentRoom, answerRoom) {
+    const tail = (value) => String(value || '—').slice(-4);
+    return `answer 房间不匹配（当前 ${tail(currentRoom)}，answer ${tail(answerRoom)}），请重新使用当前主机邀请`;
+  }
+
   function meshPairs(playerIds) {
     const ids = [...playerIds];
     const pairs = [];
@@ -141,6 +146,7 @@
     settle,
     answerImportStatus,
     entryMode,
+    roomMismatchMessage,
     meshPairs,
     encodePayload,
     decodePayload,

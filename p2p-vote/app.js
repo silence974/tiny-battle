@@ -9,6 +9,7 @@
     settle,
     answerImportStatus,
     entryMode,
+    roomMismatchMessage,
     encodePayload,
     decodePayload,
   } = window.VoteGame;
@@ -222,7 +223,9 @@
 
   async function importAnswer(raw) {
     const { kind, payload } = await decodeTextOrUrl(raw);
-    if (kind !== 'answer' || payload.room !== state.room) throw new Error('answer 不属于当前房间');
+    if (kind !== 'answer' || payload.room !== state.room || payload.hostId !== state.hostId) {
+      throw new Error(roomMismatchMessage(state.room, payload.room));
+    }
     const entry = state.hostPeers.get(Number(payload.seat));
     if (!entry) throw new Error('找不到对应席位');
     const importStatus = answerImportStatus(entry.pc.signalingState, entry.answerState);

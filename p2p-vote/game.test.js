@@ -12,6 +12,7 @@ const {
   decodePayload,
   answerImportStatus,
   entryMode,
+  roomMismatchMessage,
 } = require('./game.js');
 
 test('applying the same vote event twice is idempotent', () => {
@@ -118,4 +119,11 @@ test('entry mode selects host for direct access and player for signal links', ()
   assert.equal(entryMode('#join=c.payload'), 'player');
   assert.equal(entryMode('#answer=c.payload'), 'player');
   assert.equal(entryMode('#other=value'), 'host');
+});
+
+test('room mismatch explains which room the answer belongs to', () => {
+  assert.equal(
+    roomMismatchMessage('HOST-1234', 'OLD-9876'),
+    'answer 房间不匹配（当前 1234，answer 9876），请重新使用当前主机邀请',
+  );
 });
