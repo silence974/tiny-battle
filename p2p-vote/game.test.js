@@ -11,6 +11,7 @@ const {
   encodePayload,
   decodePayload,
   answerImportStatus,
+  entryMode,
 } = require('./game.js');
 
 test('applying the same vote event twice is idempotent', () => {
@@ -110,4 +111,11 @@ test('answer import is accepted once and rejects duplicate or invalid signaling 
   assert.equal(answerImportStatus('have-local-offer', 'importing'), 'busy');
   assert.equal(answerImportStatus('stable', 'imported'), 'already-imported');
   assert.equal(answerImportStatus('stable', 'idle'), 'invalid-state');
+});
+
+test('entry mode selects host for direct access and player for signal links', () => {
+  assert.equal(entryMode(''), 'host');
+  assert.equal(entryMode('#join=c.payload'), 'player');
+  assert.equal(entryMode('#answer=c.payload'), 'player');
+  assert.equal(entryMode('#other=value'), 'host');
 });

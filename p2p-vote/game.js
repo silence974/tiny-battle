@@ -73,6 +73,10 @@
     return signalingState === 'have-local-offer' ? 'ok' : 'invalid-state';
   }
 
+  function entryMode(hash = '') {
+    return hash.startsWith('#join=') || hash.startsWith('#answer=') ? 'player' : 'host';
+  }
+
   function meshPairs(playerIds) {
     const ids = [...playerIds];
     const pairs = [];
@@ -136,6 +140,7 @@
     mergeEvents,
     settle,
     answerImportStatus,
+    entryMode,
     meshPairs,
     encodePayload,
     decodePayload,

@@ -8,6 +8,7 @@
     mergeEvents,
     settle,
     answerImportStatus,
+    entryMode,
     encodePayload,
     decodePayload,
   } = window.VoteGame;
@@ -19,6 +20,8 @@
     role: $('role'),
     room: $('room'),
     status: $('status'),
+    hostCard: $('host-card'),
+    playerCard: $('player-card'),
     hostPanel: $('host-panel'),
     playerPanel: $('player-panel'),
     gamePanel: $('game-panel'),
@@ -78,6 +81,12 @@
   function setStatus(message, tone = '') {
     ui.status.textContent = message;
     ui.status.dataset.tone = tone;
+  }
+
+  function setEntryMode(mode) {
+    const player = mode === 'player';
+    ui.hostCard.hidden = player;
+    ui.playerCard.hidden = !player;
   }
 
   function log(message) {
@@ -181,6 +190,7 @@
 
   async function startHost() {
     state.role = 'host';
+    setEntryMode('host');
     state.room = roomCode();
     state.hostId = randomId('host');
     ui.role.textContent = '主机（非投票席）';
@@ -238,6 +248,7 @@
     const { kind, payload } = await decodeTextOrUrl(raw);
     if (kind !== 'join') throw new Error('这里需要主机邀请链接');
     state.role = 'player';
+    setEntryMode('player');
     state.room = payload.room;
     state.hostId = payload.hostId;
     state.seat = Number(payload.seat);
@@ -466,7 +477,15 @@
   }
 
   function renderGame() {
+    if (state.role === 'host') {
+      ui.gamePanel.hidden = true;
+      return;
+    }
     if (!state.game) return;
+    const seated = state.players.size === PLAYER_COUNT;
+    ui.playerCard.hidden = seated;
+    ui.gamePanel.hidden = !seated;
+    if (!seated) return;
     const result = settle(state.game);
     renderRoster();
     if (result.status === 'waiting') {
@@ -479,7 +498,6 @@
     const canVote = state.role === 'player' && !state.game.votes[state.playerId];
     ui.voteA.disabled = !canVote;
     ui.voteB.disabled = !canVote;
-    ui.gamePanel.hidden = false;
   }
 
   function vote(choice) {
@@ -513,8 +531,10 @@
   ui.voteB.onclick = () => vote('B');
 
   const hash = location.hash;
-  if (hash.startsWith('#join=') || hash.startsWith('#answer=')) {
+  const mode = entryMode(hash);
+  setEntryMode(mode);
+  if (mode === 'player') {
     ui.playerInvite.value = location.href;
-    if (hash.startsWith('#join=')) setStatus('检测到邀请链接：填写昵称后点击加入。');
+    if (hash.startsWith('#join=')) setStatus('填写昵称后生成 answer。');
   }
 })();
