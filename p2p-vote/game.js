@@ -74,7 +74,12 @@
   }
 
   function entryMode(hash = '') {
-    return hash.startsWith('#join=') || hash.startsWith('#answer=') ? 'player' : 'host';
+    if (hash.startsWith('#join=') || hash.startsWith('#answer=')) return 'player';
+    if (hash.startsWith('?')) {
+      const params = new URLSearchParams(hash);
+      if (params.has('join') || params.has('answer')) return 'player';
+    }
+    return 'host';
   }
 
   function roomMismatchMessage(currentRoom, answerRoom) {

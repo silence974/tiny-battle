@@ -22,6 +22,7 @@ test('loads Supabase and signaling dependencies before the app', () => {
 
 test('uses four generated seat links instead of manual room-code controls', () => {
   const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
 
   assert.match(html, /id="start-host"/);
   assert.match(html, /id="generate-invites"/);
@@ -32,6 +33,8 @@ test('uses four generated seat links instead of manual room-code controls', () =
   assert.doesNotMatch(html, /id="join-room"/);
   assert.doesNotMatch(html, /id="answer-input"/);
   assert.doesNotMatch(html, /id="answer-link"/);
+  assert.match(app, /searchParams\.set\('join'/);
+  assert.match(app, /window\.location\.hash\.startsWith\('#join='/);
 });
 
 test('ships a public-safe Supabase configuration template', () => {

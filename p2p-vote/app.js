@@ -70,13 +70,19 @@
       token: invite.token,
     });
     const url = new URL(window.location.href);
-    url.hash = `join=${encoded}`;
+    url.searchParams.set('join', encoded);
+    url.hash = '';
     return url.toString();
   }
 
-  async function readInviteFromHash() {
-    if (entryMode(window.location.hash) !== 'player' || !window.location.hash.startsWith('#join=')) return null;
-    const invite = await decodePayload(window.location.hash.slice('#join='.length));
+  async function readInviteFromLocation() {
+    const queryInvite = new URLSearchParams(window.location.search).get('join');
+    const hashInvite = window.location.hash.startsWith('#join=')
+      ? window.location.hash.slice('#join='.length)
+      : null;
+    const encoded = queryInvite || hashInvite;
+    if (!encoded) return null;
+    const invite = await decodePayload(encoded);
     const seat = Number(invite?.seat);
     if (!invite?.room || !Number.isInteger(seat) || seat < 1 || seat > PLAYER_COUNT || !invite?.name || !invite?.token) {
       throw new Error('邀请链接无效，请向房主重新索取链接');
@@ -601,12 +607,13 @@
   });
 
   async function initialize() {
-    if (entryMode(window.location.hash) === 'player') {
+    const playerEntry = entryMode(window.location.search) === 'player' || entryMode(window.location.hash) === 'player';
+    if (playerEntry) {
       ui.hostCard.hidden = true;
       ui.playerCard.hidden = false;
       ui.playerPanel.hidden = false;
       try {
-        const invite = await readInviteFromHash();
+        const invite = await readInviteFromLocation();
         await joinAsPlayer(invite);
       } catch (error) {
         ui.playerWaiting.textContent = error.message;

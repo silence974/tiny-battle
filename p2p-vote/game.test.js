@@ -118,7 +118,11 @@ test('entry mode selects host for direct access and player for signal links', ()
   assert.equal(entryMode(''), 'host');
   assert.equal(entryMode('#join=c.payload'), 'player');
   assert.equal(entryMode('#answer=c.payload'), 'player');
+  assert.equal(entryMode('?join=c.payload'), 'player');
+  assert.equal(entryMode('?cache=1&join=c.payload'), 'player');
+  assert.equal(entryMode('?answer=c.payload'), 'player');
   assert.equal(entryMode('#other=value'), 'host');
+  assert.equal(entryMode('?other=value'), 'host');
 });
 
 test('room mismatch explains which room the answer belongs to', () => {
