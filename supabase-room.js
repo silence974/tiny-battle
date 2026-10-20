@@ -25,6 +25,12 @@
     return `game312:${String(room || '').trim()}`;
   }
 
+  function enginePlayerId(seat) {
+    const value = Number(seat);
+    if (!Number.isInteger(value) || value < 1 || value > PLAYER_COUNT) throw new Error('无效的引擎席位');
+    return `p${value}`;
+  }
+
   function token(seed) {
     if (seed) return String(seed);
     if (globalScope?.crypto?.getRandomValues) {
@@ -103,7 +109,7 @@
     if (existingId && existingId !== id) return { accepted: false, reason: 'seat-taken' };
     const existing = state.players.get(id);
     if (existing && existing.seat !== requestedSeat) return { accepted: false, reason: 'identity-already-seated' };
-    state.players.set(id, { id, name: invite.name || name || id, seat: requestedSeat, token: invite.token, connected: true });
+    state.players.set(id, { id, engineId: enginePlayerId(requestedSeat), name: invite.name || name || id, seat: requestedSeat, token: invite.token, connected: true });
     return { accepted: true, seat: requestedSeat, reconnected: Boolean(existing) };
   }
 
@@ -234,6 +240,7 @@
     PROTOCOL,
     validateConfig,
     roomTopic,
+    enginePlayerId,
     createInvites,
     createRoomState,
     createSeatLinks,

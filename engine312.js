@@ -73,6 +73,19 @@ function buildDeck(config) {
   return deck;
 }
 
+function buildEventDeck(config) {
+  const deck = [];
+  for (const card of config.exploration?.eventDeck || []) {
+    for (let i = 0; i < (card.count || 1); i += 1) deck.push(clone(card));
+  }
+  return deck;
+}
+
+function drawEvent(state, config) {
+  if (!state.eventDeck?.length) return null;
+  return clone(state.eventDeck.shift());
+}
+
 function makeBoard(config) {
   const board = {};
   for (let row = 0; row < config.board.rows; row += 1) {
@@ -85,11 +98,13 @@ function makeBoard(config) {
         garrison: emptyForces(),
         building: null,
         blackPower: 0,
+        blackReward: 0,
         blackRewardTaken: false,
         permanentPointAwarded: false,
         event: null,
         productionLastRound: { gold: 0, wood: 0, food: 0 },
         controlled: false,
+        blackUnderlying: null,
       };
     }
   }
@@ -158,6 +173,7 @@ function createGame({ seed = 1, players, config = DEFAULT_CONFIG }) {
     pendingAttacks: [],
     displacements: [],
     black: { deck: buildDeck(config), discard: [], expansionStep: 1, powerBonus: 0 },
+    eventDeck: buildEventDeck(config),
     events: [],
     result: null,
   };
@@ -260,6 +276,36 @@ function legalActions(state, playerId, config = DEFAULT_CONFIG) {
       }
     }
   }
+  const maxRecruit = config.recruitment?.maxPerAction || 2;
+  for (const [coord, tile] of Object.entries(state.board)) {
+    if (tile.owner !== player.id || !tile.controlled || tile.building !== 'barracks' || unitCount(tile.garrison) <= 0) continue;
+    for (const unit of Object.keys(config.units)) {
+      for (let count = 1; count <= maxRecruit; count += 1) {
+        const cost = Object.fromEntries(Object.entries(config.units[unit].recruit || {}).map(([resource, amount]) => [resource, amount * count]));
+        if (canPay(player.resources, cost)) actions.push({ type: 'recruit', at: tile.coord, unit, count });
+      }
+    }
+  }
+  for (const unit of Object.keys(player.reserve)) {
+    for (let count = 1; count <= player.reserve[unit]; count += 1) {
+      actions.push({ type: 'deploy', unit, count });
+    }
+  }
+  for (const [coord, tile] of Object.entries(state.board)) {
+    if (tile.owner !== player.id || !tile.controlled || unitCount(tile.garrison) <= 0) continue;
+    const from = tile.coord;
+    for (const target of Object.values(state.board)) {
+      if (!adjacent(from, target.coord) || (target.kind === 'hq' && target.owner !== player.id)) continue;
+      for (const unit of Object.keys(tile.garrison)) {
+        if (!tile.garrison[unit]) continue;
+        const forces = emptyForces();
+        forces[unit] = 1;
+        if (tile.kind === 'hq' && unitCount(subtractForces(tile.garrison, forces)) === 0) continue;
+        if (target.kind === 'hq' && unitCount(subtractForces(tile.garrison, forces)) === 0) continue;
+        actions.push({ type: 'dispatch', from: [...from], to: [...target.coord], route: [[...target.coord]], forces });
+      }
+    }
+  }
   return actions;
 }
 
@@ -290,15 +336,35 @@ function dispatch(state, player, action, config) {
   const origin = state.board[key(action.from)];
   assert(origin && origin.owner === player.id, 'dispatch origin is not controlled');
   validateRoute(state, { ...action, playerId: player.id });
-  const forces = { militia: action.forces?.militia || 0, guard: action.forces?.guard || 0 };
-  assert(forces.militia >= 0 && forces.guard >= 0, 'invalid force count');
-  assert(forces.militia <= origin.garrison.militia && forces.guard <= origin.garrison.guard, 'not enough forces');
-  assert(origin.kind !== 'hq' || unitCount(subtractForces(origin.garrison, forces)) > 0, 'HQ last soldier is protected');
+  const allocations = Array.isArray(action.routeForces) && action.routeForces.length
+    ? action.routeForces
+    : [{ at: action.from, forces: action.forces || emptyForces() }];
+  const routeSources = new Set([key(action.from), ...action.route.slice(0, -1).map(key)]);
+  const takenByTile = new Map();
+  for (const allocation of allocations) {
+    const source = state.board[key(allocation.at)];
+    assert(source && source.owner === player.id && source.explored, 'force source is not controlled');
+    assert(routeSources.has(key(allocation.at)), 'force source must be on the route');
+    assert(!sameCoord(allocation.at, action.to), 'cannot take forces from target');
+    const forces = { militia: allocation.forces?.militia || 0, guard: allocation.forces?.guard || 0 };
+    assert(forces.militia >= 0 && forces.guard >= 0 && unitCount(forces) > 0, 'invalid force count');
+    const previous = takenByTile.get(key(allocation.at)) || emptyForces();
+    takenByTile.set(key(allocation.at), addForces(previous, forces));
+  }
+  const forces = [...takenByTile.values()].reduce((total, value) => addForces(total, value), emptyForces());
+  for (const [sourceKey, taken] of takenByTile.entries()) {
+    const source = state.board[sourceKey];
+    assert(taken.militia <= source.garrison.militia && taken.guard <= source.garrison.guard, 'not enough forces');
+    assert(source.kind !== 'hq' || unitCount(subtractForces(source.garrison, taken)) > 0, 'HQ last soldier is protected');
+  }
   const extra = Math.max(0, action.route.length - config.movement.freeTiles);
   const food = extra * config.movement.compensationFoodPerExtraTile;
   assert(player.resources.food >= food, 'not enough food for route');
-  origin.garrison = subtractForces(origin.garrison, forces);
-  updateControl(origin);
+  for (const [sourceKey, taken] of takenByTile.entries()) {
+    const source = state.board[sourceKey];
+    source.garrison = subtractForces(source.garrison, taken);
+    updateControl(source);
+  }
   player.resources.food -= food;
   const target = state.board[key(action.to)];
   const expedition = { playerId: player.id, target: [...action.to], from: [...action.from], route: clone(action.route), forces, power: unitPower(forces, config) };
@@ -309,10 +375,13 @@ function dispatch(state, player, action, config) {
       existing.power += expedition.power;
       existing.route = clone(action.route);
     } else state.expeditions.push(expedition);
+  } else if (target.owner === player.id && (target.kind === 'land' || target.kind === 'hq')) {
+    target.garrison = addForces(target.garrison, forces);
+    updateControl(target);
   } else {
     state.pendingAttacks.push(expedition);
   }
-  return food;
+  return { food, forces };
 }
 
 function completePurchase(state) {
@@ -394,19 +463,23 @@ function applyCommand(input, command, config = DEFAULT_CONFIG) {
       player.ap -= 1;
       state.events.push({ type: 'build', playerId: player.id, at: [...action.at], building: action.building });
     } else if (action.type === 'dispatch') {
-      dispatch(state, player, action, config);
+      const dispatchResult = dispatch(state, player, action, config);
       player.ap -= 1;
-      state.events.push({ type: 'dispatch', playerId: player.id, from: [...action.from], to: [...action.to], route: clone(action.route), forces: clone(action.forces) });
+      state.events.push({ type: 'dispatch', playerId: player.id, from: [...action.from], to: [...action.to], route: clone(action.route), forces: clone(dispatchResult.forces) });
     } else if (action.type === 'recruit') {
       const tile = state.board[key(action.at)];
       assert(tile && tile.owner === player.id && tile.building === 'barracks' && tile.controlled, 'recruit requires controlled barracks');
-      assert(action.count > 0 && action.count <= config.recruitment?.maxPerAction || action.count > 0, 'invalid recruit count');
+      assert(unitCount(tile.garrison) > 0, 'recruit requires stationed barracks');
+      const maxRecruit = config.recruitment?.maxPerAction || 2;
+      assert(Number.isInteger(action.count) && action.count > 0 && action.count <= maxRecruit, 'invalid recruit count');
       const unit = action.unit || 'militia';
+      assert(config.units[unit], 'unknown recruit unit');
       const cost = config.units[unit].recruit;
       const total = Object.fromEntries(Object.entries(cost).map(([resource, value]) => [resource, value * action.count]));
       assert(canPay(player.resources, total), 'not enough resources');
       pay(player.resources, total);
-      player.reserve[unit] += action.count;
+      tile.garrison[unit] += action.count;
+      updateControl(tile);
       player.ap -= 1;
     } else if (action.type === 'deploy') {
       const unit = action.unit || 'militia';
@@ -457,20 +530,114 @@ function resolveExploration(state, config) {
       }
       target.owner = winner.playerId;
       target.kind = 'land';
+      target.explored = true;
       target.garrison = clone(winner.forces);
       target.blackPower = 0;
-      target.blackRewardTaken = true;
-      playerById(state, winner.playerId).permanentPoints += target.permanentPointAwarded ? 0 : 1;
-      target.permanentPointAwarded = true;
+      const player = playerById(state, winner.playerId);
+      if (!target.blackRewardTaken) {
+        player.resources.gold += target.blackReward || config.black.standardRewardGold;
+        player.permanentPoints += target.permanentPointAwarded ? 0 : 1;
+        target.permanentPointAwarded = true;
+        target.blackRewardTaken = true;
+        target.blackReward = 0;
+      }
+      const underlying = target.blackUnderlying;
+      target.blackUnderlying = null;
+      if (underlying?.event) resolveExplorationEvent(state, target, winner, underlying.event, config, true);
     } else {
-      target.explored = true;
-      target.kind = 'land';
-      target.owner = winner.playerId;
-      target.garrison = clone(winner.forces);
-      target.event = { name: 'revealed', resolved: true };
+      const event = target.event || drawEvent(state, config);
+      resolveExplorationEvent(state, target, winner, event, config, false);
     }
-    updateControl(target);
+    if (target.owner === winner.playerId && target.garrison) updateControl(target);
     state.events.push({ type: 'exploration', target: target.coord, playerId: winner.playerId });
+  }
+  resolveDisplacements(state, config);
+}
+
+function addEventReward(player, reward) {
+  for (const [resource, amount] of Object.entries(reward || {})) {
+    if (resource === 'choice') continue;
+    player.resources[resource] = (player.resources[resource] || 0) + amount;
+  }
+}
+
+function resolveExplorationEvent(state, target, winner, event, config, afterBlack) {
+  const player = playerById(state, winner.playerId);
+  if (!event) {
+    target.explored = true;
+    target.kind = 'land';
+    target.owner = winner.playerId;
+    target.garrison = clone(winner.forces);
+    target.event = { name: 'revealed', resolved: true, choice: 'occupy' };
+    return;
+  }
+  const choice = winner.eventChoice || 'resource';
+  target.event = { ...clone(event), choice };
+  state.events.push({ type: 'exploration_event', target: target.coord, playerId: winner.playerId, name: event.name, choice });
+  if (choice === 'resource') {
+    addEventReward(player, event.resource);
+    target.explored = true;
+    target.kind = 'land';
+    target.owner = winner.playerId;
+    target.garrison = clone(winner.forces);
+    target.event.resolved = true;
+    return;
+  }
+  const monster = event.monster || { power: 0, points: 0, reward: {} };
+  if (winner.power > monster.power) {
+    player.permanentPoints += monster.points || 0;
+    addEventReward(player, monster.reward);
+    target.explored = true;
+    target.kind = 'land';
+    target.owner = winner.playerId;
+    target.garrison = clone(winner.forces);
+    target.event.resolved = true;
+    return;
+  }
+  if (afterBlack && config.rules.postBlackEventFailure === 'neutral') {
+    target.explored = true;
+    target.kind = 'land';
+    target.owner = null;
+    target.garrison = emptyForces();
+    target.event = null;
+    state.displacements.push({ ...winner, reason: 'post_black_event' });
+  } else {
+    target.explored = false;
+    target.kind = 'unknown';
+    target.owner = null;
+    target.garrison = emptyForces();
+    state.displacements.push({ ...winner, reason: 'exploration_monster' });
+  }
+}
+
+function resolveDisplacements(state, config) {
+  for (const displacement of state.displacements) {
+    if (displacement.destination) continue;
+    const player = playerById(state, displacement.playerId);
+    const adjacentTiles = Object.values(state.board)
+      .filter((tile) => adjacent(tile.coord, displacement.target))
+      .sort((a, b) => key(a.coord).localeCompare(key(b.coord)));
+    const own = adjacentTiles.find((tile) => tile.owner === player.id && tile.controlled && tile.explored);
+    if (own) {
+      own.garrison = addForces(own.garrison, displacement.forces);
+      updateControl(own);
+      displacement.destination = { type: 'tile', coord: [...own.coord] };
+      continue;
+    }
+    const unknown = adjacentTiles.find((tile) => tile.kind === 'unknown' && !tile.explored);
+    if (unknown) {
+      const existing = state.expeditions.find((expedition) => expedition.playerId === player.id && sameCoord(expedition.target, unknown.coord));
+      if (existing) {
+        existing.forces = addForces(existing.forces, displacement.forces);
+        existing.power += unitPower(displacement.forces, config);
+      } else {
+        state.expeditions.push({ playerId: player.id, target: [...unknown.coord], from: [...displacement.target], route: [], forces: clone(displacement.forces), power: unitPower(displacement.forces, config) });
+      }
+      displacement.destination = { type: 'expedition', coord: [...unknown.coord] };
+      continue;
+    }
+    player.reserve = addForces(player.reserve, displacement.forces);
+    displacement.destination = { type: 'reserve' };
   }
 }
 
@@ -504,18 +671,26 @@ function resolveCombat(state, config) {
       state.phase = 'ended';
       player.permanentPoints += 0;
     } else if (target.kind === 'black') {
+      const underlying = target.blackUnderlying;
       target.kind = 'land';
       target.owner = winner.playerId;
+      target.explored = true;
       target.garrison = clone(winner.forces);
       target.blackPower = 0;
       target.controlled = true;
       if (!target.blackRewardTaken) {
-        player.resources.gold += config.black.standardRewardGold;
+        player.resources.gold += target.blackReward || config.black.standardRewardGold;
         player.permanentPoints += target.permanentPointAwarded ? 0 : 1;
         target.permanentPointAwarded = true;
         target.blackRewardTaken = true;
+        target.blackReward = 0;
       }
+      target.blackUnderlying = null;
+      if (underlying?.event) resolveExplorationEvent(state, target, winner, underlying.event, config, true);
     } else {
+      if (target.owner && target.owner !== winner.playerId && unitCount(target.garrison) > 0) {
+        state.displacements.push({ playerId: target.owner, target: [...target.coord], forces: clone(target.garrison), reason: 'lost_tile' });
+      }
       target.owner = winner.playerId;
       target.garrison = clone(winner.forces);
       target.explored = true;
@@ -524,13 +699,19 @@ function resolveCombat(state, config) {
     }
     state.events.push({ type: 'combat', target: target.coord, winner: winner.playerId });
   }
+  resolveDisplacements(state, config);
 }
 
 function applyProduction(state, config) {
   for (const player of state.players) {
     const hq = Object.values(state.board).find((tile) => tile.kind === 'hq' && tile.owner === player.id);
     if (hq) {
-      for (const resource of Object.keys(player.resources)) player.resources[resource] += config.hqProduction[resource] || 0;
+      const capacity = (hq.garrison.militia || 0) * config.units.militia.capacity
+        + (hq.garrison.guard || 0) * config.units.guard.capacity;
+      const tier = (config.hqProductionTiers || []).find((candidate) => capacity >= candidate.minCapacity && capacity <= candidate.maxCapacity)
+        || config.hqProduction;
+      for (const resource of Object.keys(player.resources)) player.resources[resource] += tier[resource] || 0;
+      hq.productionLastRound = { gold: tier.gold || 0, wood: tier.wood || 0, food: tier.food || 0 };
     }
   }
   for (const tile of Object.values(state.board)) {
@@ -540,6 +721,47 @@ function applyProduction(state, config) {
     if (!player) continue;
     for (const [resource, amount] of Object.entries(tile.productionLastRound)) player.resources[resource] += amount;
   }
+}
+
+function applyBlackExpansion(state, step, config) {
+  const steps = config.board.expansionSteps || {};
+  const current = new Set((steps[step] || steps[String(step)] || []).map(key));
+  const previous = new Set((steps[step - 1] || steps[String(step - 1)] || []).map(key));
+  const newCells = [...current].filter((coord) => !previous.has(coord));
+  const displaced = [];
+  for (const coordKey of newCells.sort()) {
+    const target = state.board[coordKey];
+    if (!target || target.kind === 'hq' || target.kind === 'black_hq' || target.kind === 'black') continue;
+    if (target.kind === 'unknown') {
+      const hasExpedition = state.expeditions.some((expedition) => sameCoord(expedition.target, target.coord));
+      target.blackUnderlying = hasExpedition ? { type: 'unknown', event: drawEvent(state, config) } : null;
+      target.kind = 'black';
+      target.explored = true;
+      target.owner = 'black';
+      target.garrison = emptyForces();
+      target.blackPower = config.black.standardPower + state.black.powerBonus;
+      target.blackReward = config.black.standardRewardGold;
+      continue;
+    }
+    if (target.kind === 'land') {
+      const attackPower = config.black.expansionAttackPowerBase + config.black.expansionAttackPowerPerCard * step;
+      const defenderPower = target.controlled ? unitPower(target.garrison, config) : 0;
+      if (target.owner && target.controlled && defenderPower >= attackPower) continue;
+      if (target.owner && unitCount(target.garrison) > 0) displaced.push({ playerId: target.owner, target: [...target.coord], forces: clone(target.garrison), reason: 'black_expansion' });
+      target.blackUnderlying = { type: 'explored', building: target.building, event: target.event };
+      target.kind = 'black';
+      target.explored = true;
+      target.owner = 'black';
+      target.garrison = emptyForces();
+      target.building = null;
+      target.event = null;
+      target.blackPower = config.black.standardPower + state.black.powerBonus;
+      target.blackReward = config.black.standardRewardGold;
+    }
+  }
+  state.displacements.push(...displaced);
+  resolveDisplacements(state, config);
+  state.events.push({ type: 'black_expansion', step, tiles: newCells });
 }
 
 function drawBlack(state, config) {
@@ -555,11 +777,19 @@ function drawBlack(state, config) {
       state.phase = 'ended';
       return;
     }
-    if (card === 'garrison') state.black.powerBonus += 1;
-    if (card === 'build') {
-      for (const tile of Object.values(state.board)) if (tile.kind === 'black') tile.blackRewardTaken = false;
+    if (card === 'garrison') {
+      state.black.powerBonus += 1;
+      for (const tile of Object.values(state.board)) {
+        if (tile.kind === 'black' || tile.kind === 'black_hq') tile.blackPower += 1;
+      }
     }
-    if (card === 'expansion') state.black.expansionStep += 1;
+    if (card === 'build') {
+      for (const tile of Object.values(state.board)) if (tile.kind === 'black') tile.blackReward = (tile.blackReward || config.black.standardRewardGold) + 1;
+    }
+    if (card === 'expansion') {
+      state.black.expansionStep += 1;
+      applyBlackExpansion(state, state.black.expansionStep, config);
+    }
   }
 }
 
@@ -595,19 +825,28 @@ function advance(input, config = DEFAULT_CONFIG) {
 }
 
 function ranking(state, config) {
-  return [...state.players].sort((a, b) => {
+  const sorted = [...state.players].sort((a, b) => {
     const score = b.score - a.score;
     if (score) return score;
     const gold = b.resources.gold - a.resources.gold;
     if (gold) return gold;
     return b.scoreBreakdown.controlledTiles - a.scoreBreakdown.controlledTiles;
-  }).map((player, index, all) => ({
-    rank: index === 0 || player.score !== all[index - 1].score || player.resources.gold !== all[index - 1].resources.gold || player.scoreBreakdown.controlledTiles !== all[index - 1].scoreBreakdown.controlledTiles ? index + 1 : all[index - 1].rank,
+  });
+  let previous = null;
+  let previousRank = 1;
+  return sorted.map((player, index) => {
+    const tied = previous && player.score === previous.score && player.resources.gold === previous.resources.gold && player.scoreBreakdown.controlledTiles === previous.scoreBreakdown.controlledTiles;
+    const rank = tied ? previousRank : index + 1;
+    previous = player;
+    previousRank = rank;
+    return {
+    rank,
     playerId: player.id,
     score: player.score,
     gold: player.resources.gold,
     controlledTiles: player.scoreBreakdown.controlledTiles,
-  }));
+    };
+  });
 }
 
 function outcome(input, config = DEFAULT_CONFIG) {
@@ -624,11 +863,18 @@ function outcome(input, config = DEFAULT_CONFIG) {
 function checkInvariants(input) {
   const state = input;
   for (const player of state.players) {
-    if (Object.values(player.resources).some((value) => value < 0)) return { ok: false, reason: 'negative resource' };
-    if (player.ap < 0) return { ok: false, reason: 'negative AP' };
+    if (Object.values(player.resources).some((value) => !Number.isFinite(value) || value < 0)) return { ok: false, reason: 'negative resource' };
+    if (!Number.isInteger(player.ap) || player.ap < 0) return { ok: false, reason: 'negative AP' };
   }
   for (const tile of Object.values(state.board)) {
-    if (Object.values(tile.garrison).some((value) => value < 0)) return { ok: false, reason: 'negative garrison' };
+    if (Object.values(tile.garrison).some((value) => !Number.isInteger(value) || value < 0)) return { ok: false, reason: 'negative garrison' };
+    if (tile.controlled && (!tile.owner || !tile.explored || unitCount(tile.garrison) <= 0)) return { ok: false, reason: 'invalid control' };
+    if (tile.kind === 'unknown' && (tile.owner || tile.explored || tile.controlled)) return { ok: false, reason: 'unknown tile has control' };
+  }
+  const recomputed = recomputeScores(state);
+  for (const player of state.players) {
+    const expected = recomputed.players.find((candidate) => candidate.id === player.id);
+    if (player.score !== expected.score) return { ok: false, reason: 'score mismatch' };
   }
   return { ok: true };
 }

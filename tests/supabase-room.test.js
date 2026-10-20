@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const Room = require('../supabase-room');
+const Engine = require('../engine312');
 
 function room() {
   return Room.createRoomState({
@@ -73,5 +74,33 @@ test('envelope validation rejects wrong room, target, duplicate request, and sta
 test('same-seat concurrent commands are represented as a sequence conflict', () => {
   const conflict = Room.commandConflict({ expectedSeq: 9, receivedSeq: 8, requestId: 'req-agent' });
   assert.deepEqual(conflict, { type: 'reject', requestId: 'req-agent', reason: 'sequence-conflict', expectedSeq: 9, receivedSeq: 8 });
+});
+
+test('seat identities map to stable engine players for a four-seat host round trip', () => {
+  assert.equal(Room.enginePlayerId(1), 'p1');
+  assert.equal(Room.enginePlayerId(4), 'p4');
+  const state = room();
+  for (let seat = 1; seat <= 4; seat += 1) {
+    const result = Room.requestSeat(state, { clientId: `client-${seat}`, name: `P${seat}`, seat, token: `tok-${String.fromCharCode(96 + seat)}` });
+    assert.equal(result.accepted, true);
+    assert.equal(Room.enginePlayerId(result.seat), `p${seat}`);
+  }
+});
+
+test('host command round trip accepts one pass from each fixed seat without client-id lookup errors', () => {
+  const state = room();
+  let game = Engine.createGame({ seed: 9, players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, seat })) });
+  game.phase = 'action';
+  game.activeSeat = 1;
+  for (const player of game.players) { player.ap = 3; player.passed = false; }
+  for (let seat = 1; seat <= 4; seat += 1) {
+    Room.requestSeat(state, { clientId: `browser-${seat}`, name: `P${seat}`, seat, token: `tok-${String.fromCharCode(96 + seat)}` });
+    const seated = state.players.get(`browser-${seat}`);
+    assert.doesNotThrow(() => {
+      game = Engine.applyCommand(game, { seq: game.seq, playerId: seated.engineId, action: { type: 'pass' } }).state;
+    });
+  }
+  assert.equal(game.players[0].ap, 2);
+  assert.equal(game.seq, 4);
 });
 

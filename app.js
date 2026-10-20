@@ -7,6 +7,7 @@
     mode: location.hash.startsWith('#r=') ? 'player' : 'host',
     hostId: null,
     clientId: null,
+    enginePlayerId: null,
     room: null,
     roomState: null,
     game: null,
@@ -79,7 +80,7 @@
     $('round').textContent = snapshot.round;
     $('sequence').textContent = snapshot.seq;
     renderBoard(snapshot);
-    const me = snapshot.players.find((player) => player.id === state.clientId) || snapshot.players[0];
+    const me = snapshot.players.find((player) => player.id === state.enginePlayerId) || snapshot.players[0];
     $('resources').textContent = JSON.stringify(me?.resources || {}, null, 2);
     $('hand').textContent = JSON.stringify(me?.hand || [], null, 2);
     const actions = snapshot.legalActions || [];
@@ -102,6 +103,7 @@
   async function broadcastState(target = null, requestId = undefined) {
     const targets = target ? [target] : [...state.roomState.players.keys()];
     for (const playerId of targets) {
+      const player = state.roomState.players.get(playerId);
       await sendEnvelope(Room.makeEnvelope({
         room: state.room,
         type: 'state',
@@ -109,7 +111,7 @@
         to: playerId,
         requestId: requestId || undefined,
         seq: state.game.seq,
-        payload: { snapshot: Engine.snapshot(state.game, playerId) },
+        payload: { snapshot: Engine.snapshot(state.game, player?.engineId || playerId) },
       }));
     }
     publishDebug();
@@ -138,7 +140,7 @@
       return;
     }
     try {
-      state.game = Engine.applyCommand(state.game, { seq: command.seq, playerId: player.id, action: command.action }).state;
+      state.game = Engine.applyCommand(state.game, { seq: command.seq, playerId: player.engineId, action: command.action }).state;
       settleAutomatic();
       await sendRoster();
       await broadcastState(null, message.requestId);
@@ -198,6 +200,7 @@
       const link = $('player-link').value.trim() || location.href;
       const seat = Room.parseSeatFragment(new URL(link).hash);
       state.room = seat.room;
+      state.enginePlayerId = Room.enginePlayerId(seat.seat);
       state.clientId = `${seat.room}-seat-${seat.seat}-${id()}`;
       state.transport = Room.createRoomTransport({
         config,
@@ -217,7 +220,7 @@
   async function submitAction(action) {
     if (!state.snapshot || !state.transport || state.mode === 'host') return;
     try {
-      await state.transport.sendCommand({ seq: state.snapshot.seq, playerId: state.clientId, action });
+      await state.transport.sendCommand({ seq: state.snapshot.seq, playerId: state.enginePlayerId, action });
     } catch (error) { setError(error); }
   }
 

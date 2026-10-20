@@ -43,5 +43,7 @@ test('browser scripts pass syntax checks and debug page is self-contained', () =
     assert.equal(fs.existsSync(path.join(root, file)), true, `${file} should exist`);
   }
   assert.match(read('debug.html'), /debug\.js/);
+  assert.match(read('app.js'), /player\.engineId/);
+  assert.match(read('app.js'), /Room\.enginePlayerId/);
 });
 
