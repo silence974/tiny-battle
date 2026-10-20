@@ -1,44 +1,113 @@
 # MESH / VOTE
 
-一个不使用游戏后端的四人 WebRTC 网状投票原型。
+一个四人浏览器端 WebRTC 网状投票原型。GitHub Pages 托管静态页面，Supabase Realtime 只负责房间和 WebRTC 建连信令；游戏规则、投票状态和投票结果都在玩家浏览器中计算。
 
-## 约束与效果
+## 架构与边界
 
-- 主机是非投票的协调节点，四位玩家各占一个席位。
-- 主机先为四席生成 4 个邀请链接；玩家各生成一个 answer 链接回传，共 8 次人工信令操作。
-- 四个主机连接建立后，主机通过已连接的数据通道转发剩余握手，自动补齐玩家之间的 6 条直连。
-- 投票事件在所有打开的连接上转发并去重。四票收齐后任意节点都能独立计算 A/B 多数或平票。
-- 邀请和 answer 默认使用浏览器原生压缩后再放入 URL；仍兼容旧的未压缩链接。压缩不可用时自动回退到未压缩格式。
-- 没有 STUN/TURN 配置，适合同一 Wi‑Fi/局域网技术验证。跨不同家庭网络不能保证连接。
-- 玩家界面显示 `玩家直连 3/3 · 可关闭主机` 后，主机关闭不会影响已建立的玩家直连；本原型不做主机重连。直连未完成前不要关闭主机。
+- 房主是非投票的协调节点，不占四个玩家席位。
+- 房主创建房间并显示 8 位房间码；四位玩家输入房间码和昵称加入。
+- Supabase Broadcast 交换 `join`、`offer`、`answer`、`leave` 等建连信令。
+- 主机连接建立后，玩家之间通过 WebRTC DataChannel 建立直连；投票事件不经过 Supabase。
+- 当前版本不保存房间、不支持刷新恢复、不支持房主迁移，也没有 TURN 中继。
+- 玩家看到 `玩家直连 3/3 · 可关闭主机` 前，房主不要关闭页面。
+
+## Supabase 配置
+
+### 1. 创建项目
+
+在 Supabase 创建一个项目。Free 计划足够当前四人测试规模。
+
+### 2. 开启匿名登录
+
+打开：`Authentication → Providers → Anonymous sign-ins`，启用 Anonymous sign-ins。
+
+客户端会调用 `signInAnonymously()`；如果没有开启，页面会显示明确的鉴权错误。
+
+### 3. 只允许 private Realtime channel
+
+在 Realtime 设置中关闭 **Allow public access to channels**，然后在 SQL Editor 执行：
+
+```sql
+create policy "authenticated clients can receive broadcasts"
+on realtime.messages
+for select
+to authenticated
+using (extension = 'broadcast');
+
+create policy "authenticated clients can send broadcasts"
+on realtime.messages
+for insert
+to authenticated
+with check (extension = 'broadcast');
+```
+
+这两个策略只允许已登录客户端读写 Broadcast 消息；客户端仍会以
+`config: { private: true }` 加入房间。当前 MVP 使用高熵房间码作为房间定位符，
+它不是独立的授权系统；后续若需要严格的房间成员权限，应增加房间表和成员 RLS。
+
+### 4. 填写浏览器公开配置
+
+从 Supabase 项目设置中复制 Project URL 和 publishable key，编辑
+`supabase-config.js`：
+
+```js
+window.SUPABASE_CONFIG = {
+  url: 'https://你的项目.supabase.co',
+  publishableKey: 'sb_publishable_你的公开key',
+};
+```
+
+如果文件不存在，可先复制模板：
+
+```bash
+cp supabase-config.example.js supabase-config.js
+```
+
+publishable key（旧项目可能仍显示 anon key）可以出现在浏览器代码中；
+绝对不要把 `secret` 或 `service_role` key 写入这个文件、提交到 GitHub 或发给玩家。
+
+## GitHub Pages 发布
+
+1. 将仓库推送到 GitHub。
+2. 打开仓库 `Settings → Pages`。
+3. 选择 `Deploy from a branch`、分支 `main`、目录 `/ (root)`。
+4. 发布地址通常是：
+   `https://silence974.github.io/tiny-battle/p2p-vote/`
+5. 首次发布后用浏览器打开该地址，确认页面不再提示填写配置。
 
 ## 本地运行
 
-在 `p2p-vote/` 的上一级目录运行：
+在仓库根目录运行静态服务器：
 
 ```bash
 python3 -m http.server 8080
 ```
 
-浏览器打开 `http://localhost:8080/p2p-vote/`。若使用多台设备，将页面放在同一局域网可访问的静态地址上；每位玩家打开自己的浏览器标签页。
+浏览器打开 `http://localhost:8080/p2p-vote/`。不要直接双击 HTML 文件，
+否则模块、WebRTC 和 Supabase 的行为可能与正式静态站点不同。
 
-直接打开页面只显示主机入口。玩家应直接打开主机复制的邀请链接；带有 `#join=` 的页面只显示玩家入座入口。四位玩家都入座后，玩家入口自动隐藏并显示投票区。
+## 一局游戏流程
 
-## GitHub Pages
+1. 房主点击“创建房间”，把显示的房间码发给玩家。
+2. 玩家填写昵称和房间码，点击“加入房间”。
+3. 房主等待四位玩家连接；玩家看到直连完成后，房主可以关闭。
+4. 四位玩家分别选择 A 或 B；所有浏览器收到相同事件并独立计算结果。
 
-把 `p2p-vote/` 目录作为静态站点发布即可。邀请链接会自动使用当前页面的 origin 和路径，因此不需要修改配置。
+## 故障排查
 
-## 手工信令流程
+- **提示编辑 `supabase-config.js`**：URL 或 publishable key 为空、格式错误，或配置脚本未部署。
+- **Supabase 匿名登录失败**：检查 Authentication 中是否启用了 Anonymous sign-ins。
+- **private channel / RLS 错误**：确认已关闭 public channel access，并创建了上面的 `select` 与 `insert` 策略。
+- **房间不存在或一直等待**：房主必须先创建房间且保持页面打开；检查房间码是否完整。
+- **房间已满**：每个房间最多四位玩家；第五位会被拒绝。
+- **浏览器页面能打开但直连失败**：当前没有 STUN/TURN，跨家庭网络不保证成功；正式公网服务需要配置 TURN。
+- **房主离开后不能恢复**：这是当前 MVP 的明确边界，不是持久化房间服务。
 
-1. 主机点击“生成 4 个邀请”，分别复制给四位玩家。
-2. 玩家填写昵称，粘贴邀请，点击“生成我的 answer”，把 answer 链接发回主机。
-3. 主机把收到的 answer 链接逐个导入。
-4. 等待每位玩家显示 `玩家直连 3/3 · 可关闭主机`，此时主机可以关闭；四位玩家分别选择 A 或 B。
-
-这里的 URL 只携带短期 WebRTC 连接描述，不是房间服务器；GitHub Pages 不保存房间和投票数据。
-
-## 纯逻辑测试
+## 测试
 
 ```bash
-node --test p2p-vote/game.test.js
+node --test p2p-vote/*.test.js
+node --check p2p-vote/game.js
+node --check p2p-vote/signaling.js
+node --check p2p-vote/app.js
 ```
