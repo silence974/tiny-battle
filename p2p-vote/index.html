@@ -19,14 +19,14 @@
 
     <section class="grid setup-grid">
       <article id="host-card" class="card">
-        <h2>主机</h2>
-        <button id="start-host" class="primary">生成 4 个邀请</button>
+        <h2>创建房间</h2>
+        <p>房主只负责协调建连，不占玩家席位。</p>
+        <button id="start-host" class="primary">创建房间</button>
         <div id="host-panel" hidden>
-          <h3>邀请</h3>
-          <div id="invite-list" class="stack"></div>
-          <label for="answer-input">玩家 answer</label>
-          <textarea id="answer-input" rows="3" placeholder="粘贴 answer 链接"></textarea>
-          <button id="import-answer">导入</button>
+          <h3>房间码</h3>
+          <p>把这个房间码发给四位玩家：</p>
+          <strong id="host-room-code" class="room-code">—</strong>
+          <p id="host-waiting" class="hint">等待玩家加入。</p>
         </div>
       </article>
 
@@ -34,14 +34,11 @@
         <h2>玩家</h2>
         <label for="player-name">昵称</label>
         <input id="player-name" placeholder="玩家名称" maxlength="20">
-        <label for="player-invite">邀请链接</label>
-        <textarea id="player-invite" rows="3" placeholder="粘贴邀请链接"></textarea>
-        <button id="join-game" class="primary">生成 answer</button>
+        <label for="room-code">房间码</label>
+        <input id="room-code" placeholder="输入 8 位房间码" maxlength="16" autocomplete="off">
+        <button id="join-room" class="primary">加入房间</button>
         <div id="player-panel" hidden>
-          <label for="answer-link">回传给主机</label>
-          <textarea id="answer-link" rows="3" readonly></textarea>
-          <button id="copy-answer">复制</button>
-          <p id="answer-box" class="hint" hidden>等待连接</p>
+          <p id="player-waiting" class="hint">正在等待主机完成连接。</p>
         </div>
       </article>
     </section>
@@ -61,7 +58,10 @@
       </aside>
     </section>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
   <script src="game.js"></script>
+  <script src="signaling.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

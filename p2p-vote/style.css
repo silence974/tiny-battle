@@ -42,8 +42,7 @@ button:hover:not(:disabled) { border-color: var(--accent); transform: translateY
 button:disabled { cursor: not-allowed; opacity: .35; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #13210e; }
 .stack { display: grid; gap: 12px; }
-.invite-row { border-left: 3px solid var(--accent); display: grid; gap: 6px; padding-left: 10px; }
-.invite-row strong { color: var(--accent); font-size: 13px; }
+.room-code { color: var(--accent); display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(30px, 8vw, 54px); letter-spacing: .16em; line-height: 1.1; margin: 10px 0 14px; }
 .hint { font-size: 13px; margin-top: 12px; }
 .vote-buttons { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); margin-top: 28px; }
 .vote-buttons button { font-size: 20px; padding: 24px 10px; }
