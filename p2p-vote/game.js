@@ -67,6 +67,12 @@
     };
   }
 
+  function answerImportStatus(signalingState, answerState = 'idle') {
+    if (answerState === 'importing') return 'busy';
+    if (answerState === 'imported') return 'already-imported';
+    return signalingState === 'have-local-offer' ? 'ok' : 'invalid-state';
+  }
+
   function meshPairs(playerIds) {
     const ids = [...playerIds];
     const pairs = [];
@@ -105,6 +111,7 @@
     applyEvent,
     mergeEvents,
     settle,
+    answerImportStatus,
     meshPairs,
     encodePayload,
     decodePayload,

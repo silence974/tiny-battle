@@ -7,6 +7,7 @@
     applyEvent,
     mergeEvents,
     settle,
+    answerImportStatus,
     encodePayload,
     decodePayload,
   } = window.VoteGame;
@@ -163,7 +164,7 @@
   }
 
   async function createHostInvite(seat) {
-    const entry = { kind: 'host', seat, peerId: `seat-${seat}`, pc: null, channel: null };
+    const entry = { kind: 'host', seat, peerId: `seat-${seat}`, pc: null, channel: null, answerState: 'idle' };
     const pc = createPeerConnection(entry);
     attachChannel(entry, pc.createDataChannel('control'));
     state.hostPeers.set(seat, entry);
@@ -216,9 +217,20 @@
     if (kind !== 'answer' || payload.room !== state.room) throw new Error('answer 不属于当前房间');
     const entry = state.hostPeers.get(Number(payload.seat));
     if (!entry) throw new Error('找不到对应席位');
+    const importStatus = answerImportStatus(entry.pc.signalingState, entry.answerState);
+    if (importStatus === 'busy') throw new Error('该席位的 answer 正在导入，请稍候');
+    if (importStatus === 'already-imported') throw new Error('该席位的 answer 已导入，不要重复导入');
+    if (importStatus !== 'ok') throw new Error(`该席位当前无法导入 answer（连接状态：${entry.pc.signalingState}）`);
     entry.peerId = payload.playerId;
     entry.name = payload.name;
-    await entry.pc.setRemoteDescription(payload.answer);
+    entry.answerState = 'importing';
+    try {
+      await entry.pc.setRemoteDescription(payload.answer);
+      entry.answerState = 'imported';
+    } catch (error) {
+      entry.answerState = 'idle';
+      throw error;
+    }
     state.peers.set(payload.playerId, entry);
     log(`已导入玩家 ${payload.seat} 的 answer，等待连接打开。`);
     ui.answerInput.value = '';

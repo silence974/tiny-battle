@@ -10,6 +10,7 @@ const {
   meshPairs,
   encodePayload,
   decodePayload,
+  answerImportStatus,
 } = require('./game.js');
 
 test('applying the same vote event twice is idempotent', () => {
@@ -87,4 +88,11 @@ test('mesh pairing returns every direct player-to-player edge exactly once', () 
 test('signal payloads survive URL-safe encoding', () => {
   const payload = { room: 'AB12-CD34', seat: 3, offer: { type: 'offer', sdp: 'a+b/中文' } };
   assert.deepEqual(decodePayload(encodePayload(payload)), payload);
+});
+
+test('answer import is accepted once and rejects duplicate or invalid signaling states', () => {
+  assert.equal(answerImportStatus('have-local-offer', 'idle'), 'ok');
+  assert.equal(answerImportStatus('have-local-offer', 'importing'), 'busy');
+  assert.equal(answerImportStatus('stable', 'imported'), 'already-imported');
+  assert.equal(answerImportStatus('stable', 'idle'), 'invalid-state');
 });
