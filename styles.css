@@ -63,6 +63,13 @@ h3 { margin-bottom: .7rem; color: var(--color-muted); font-size: .8rem; font-wei
 .mode-tab { border: 0; border-radius: 7px; padding: .55rem 1rem; color: var(--color-muted); background: transparent; cursor: pointer; }
 .mode-tab.is-active, .mode-tab:hover { color: var(--color-primary); background: white; box-shadow: 0 1px 4px rgb(16 24 40 / 12%); }
 .entry-panel { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 1rem; }
+.entry-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+.entry-action { min-width: 9rem; }
+.secondary-button { border-color: #98a2b3; color: var(--color-text); background: #f8fafc; white-space: nowrap; }
+.secondary-button:hover { border-color: var(--color-primary); color: var(--color-primary); background: white; }
+.player-count-field { min-width: 7rem; }
+.player-count-field input { width: 7rem; }
+.player-seat-message { flex-basis: 100%; margin: 0; color: var(--color-text); font-weight: 700; }
 .form-grid { display: grid; grid-template-columns: minmax(160px, .45fr) minmax(260px, 1fr); flex: 1 1 520px; gap: 1rem; }
 label { display: flex; flex-direction: column; gap: .4rem; color: var(--color-muted); font-size: .78rem; font-weight: 700; }
 input { min-width: 0; border: 1px solid #d0d5dd; border-radius: 8px; padding: .65rem .75rem; color: var(--color-text); background: white; outline: 0; }
@@ -86,7 +93,8 @@ button:hover { border-color: var(--color-primary); color: var(--color-primary); 
 .seat-links, .roster { display: grid; gap: .55rem; }
 .seat-link { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: .5rem; align-items: center; }
 .seat-link strong { color: var(--color-text); font-size: .8rem; }
-.seat-link input { width: 100%; padding: .45rem .6rem; color: var(--color-muted); font-size: .72rem; }
+.seat-link-open { color: var(--color-primary); font-size: .75rem; text-decoration: none; }
+.seat-link-open:hover { text-decoration: underline; }
 .seat-link button { padding: .45rem .6rem; font-size: .72rem; }
 
 .game-layout { display: grid; gap: 1rem; }
@@ -173,7 +181,7 @@ button:hover { border-color: var(--color-primary); color: var(--color-primary); 
 @media (max-width: 480px) {
   .connection-chip { display: none; }
   .entry-panel { align-items: stretch; }
-  .entry-panel label, .entry-panel .primary-button { width: 100%; }
+  .entry-panel label, .entry-panel .entry-action { width: 100%; }
   .board { gap: 3px; padding: .3rem; }
   .tile { min-height: 43px; padding: .25rem; font-size: .55rem; }
   .tile-detail, .tile-coord { font-size: .5rem; }

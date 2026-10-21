@@ -28,22 +28,17 @@
         </div>
         <span class="rule-pill">玩家方共同胜负</span>
       </div>
-      <div class="mode-switch" role="tablist" aria-label="选择进入方式">
-        <button id="host-mode" class="mode-tab is-active" type="button" role="tab">创建房间</button>
-        <button id="player-mode" class="mode-tab" type="button" role="tab">加入房间</button>
-      </div>
       <div id="host-panel" class="entry-panel">
-        <label>主机名称<input id="host-name" value="Host" autocomplete="nickname"></label>
-        <button id="create-room" class="primary-button" type="button">创建房间</button>
-        <p class="field-help">主机负责运行唯一裁判，创建后请保持此页面在线。</p>
+        <div class="entry-actions" aria-label="开始方式">
+          <button id="create-room" class="primary-button entry-action" type="button">创建房间</button>
+          <button id="quick-simulate" class="secondary-button entry-action" type="button">快速模拟</button>
+        </div>
+        <label class="player-count-field">对局人数<input id="player-count" type="number" min="4" max="4" value="4" inputmode="numeric"></label>
+        <p class="field-help">312 当前按四个固定席位运行；座位链接由房主生成后，点击链接即可自动入座。</p>
       </div>
       <div id="player-panel" class="entry-panel" hidden>
-        <div class="form-grid">
-          <label>玩家名称<input id="player-name" value="Player" autocomplete="nickname"></label>
-          <label>座位链接<input id="player-link" placeholder="粘贴 P1–P4 座位链接"></label>
-        </div>
-        <button id="join-room" class="primary-button" type="button">加入房间</button>
-        <p class="field-help">使用主机发来的固定座位链接，刷新后可自动恢复身份。</p>
+        <p id="player-seat" class="player-seat-message">正在读取座位链接，准备自动入座…</p>
+        <p class="field-help">此页面由固定席位链接自动连接，不需要输入房间号或玩家名称。</p>
       </div>
       <div class="feedback-line">
         <p id="status" class="status">尚未连接</p>

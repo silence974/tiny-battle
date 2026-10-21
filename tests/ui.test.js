@@ -6,20 +6,47 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('root home page loads browser dependencies before app code and has host/player entry controls', () => {
+test('root home page loads browser dependencies before app code and preserves the original entry controls', () => {
   const html = read('index.html');
   assert.match(html, /supabase-js/i);
   assert.match(html, /supabase-config\.js/);
   assert.match(html, /engine312\.js/);
   assert.match(html, /supabase-room\.js/);
   assert.match(html, /app\.js/);
-  assert.match(html, /id=["']host-mode["']/);
-  assert.match(html, /id=["']player-mode["']/);
+  assert.match(html, /id=["']create-room["']/);
+  assert.match(html, /创建房间|创建对局/);
+  assert.match(html, /id=["']quick-simulate["']/);
+  assert.match(html, /快速模拟/);
+  assert.match(html, /id=["']player-count["']/);
+  assert.match(html, /对局人数/);
+  assert.doesNotMatch(html, /id=["']player-link["']/);
+  assert.doesNotMatch(html, /id=["']join-room["']/);
   assert.match(html, /id=["']room-code["']/);
   assert.match(html, /id=["']seat-links["']/);
   assert.match(html, /debug\.html/);
   assert.doesNotMatch(html, /p2p-vote/);
   assert.ok(html.indexOf('supabase-js') < html.indexOf('app.js'));
+});
+
+test('seat links are opened as automatic join links and browser boot handles them', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  assert.match(html, /id=["']player-panel["']/);
+  assert.match(html, /自动加入|自动入座/);
+  assert.match(app, /function readSeatLink\(url = location\.href\)/);
+  assert.match(app, /startPlayer\(\)/);
+  assert.match(app, /state\.mode === 'player'/);
+  assert.doesNotMatch(app, /\$\('player-link'\)/);
+});
+
+test('quick simulation keeps the 312 four-seat rule explicit', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  assert.match(html, /id=["']player-count["'][^>]*type=["']number["']/);
+  assert.match(html, /value=["']4["']/);
+  assert.match(app, /function startQuickSimulation/);
+  assert.match(app, /Room\.PLAYER_COUNT/);
+  assert.match(app, /state\.mode === 'simulation'/);
 });
 
 test('home page exposes phase, board, resources, hand, legal actions, log, and outcome containers', () => {

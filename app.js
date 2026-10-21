@@ -3,8 +3,31 @@
   const Room = window.Room312;
   const config = window.SUPABASE_CONFIG || {};
   const $ = (id) => document.getElementById(id);
+
+  function readSeatLink(url = location.href) {
+    const parsed = new URL(url);
+    const query = parsed.searchParams;
+    if (query.get('r') && query.get('s') && query.get('t')) {
+      const seat = Number(query.get('s'));
+      if (Number.isInteger(seat) && seat >= 1 && seat <= Room.PLAYER_COUNT) {
+        return { room: query.get('r'), seat, token: query.get('t'), name: query.get('name') || `P${seat}` };
+      }
+    }
+    const fragment = Room.parseSeatFragment(parsed.hash);
+    return { ...fragment, name: `P${fragment.seat}` };
+  }
+
+  function hasSeatInvite() {
+    try {
+      readSeatLink();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   const state = {
-    mode: location.hash.startsWith('#r=') ? 'player' : 'host',
+    mode: hasSeatInvite() ? 'player' : 'host',
     hostId: null,
     clientId: null,
     enginePlayerId: null,
@@ -72,13 +95,8 @@
 
   function showMode(mode) {
     state.mode = mode;
-    $('host-panel').hidden = mode !== 'host';
+    $('host-panel').hidden = mode === 'player';
     $('player-panel').hidden = mode !== 'player';
-    $('host-mode').classList.toggle('is-active', mode === 'host');
-    $('player-mode').classList.toggle('is-active', mode === 'player');
-    $('host-mode').setAttribute('aria-selected', String(mode === 'host'));
-    $('player-mode').setAttribute('aria-selected', String(mode === 'player'));
-    if (mode === 'player' && location.hash.startsWith('#r=')) $('player-link').value = location.href;
   }
 
   function renderRoster(roster = []) {
@@ -102,18 +120,24 @@
       row.className = 'seat-link';
       const label = document.createElement('strong');
       label.textContent = `P${link.seat} ${link.name}`;
-      const input = document.createElement('input');
-      input.value = link.url;
-      input.readOnly = true;
-      input.size = 42;
+      const open = document.createElement('a');
+      open.className = 'seat-link-open';
+      open.href = link.url;
+      open.target = '_blank';
+      open.rel = 'noopener';
+      open.textContent = '打开链接自动入座';
       const copy = document.createElement('button');
       copy.type = 'button';
-      copy.textContent = '复制短链接';
+      copy.textContent = '复制链接';
       copy.addEventListener('click', async () => {
-        await navigator.clipboard?.writeText(link.url);
-        setStatus(`已复制 P${link.seat} 链接`);
+        try {
+          await navigator.clipboard?.writeText(link.url);
+          setStatus(`已复制 P${link.seat} 链接`);
+        } catch {
+          setError(new Error('浏览器不允许自动复制，请使用打开链接或手动复制地址'));
+        }
       });
-      row.append(label, input, copy);
+      row.append(label, open, copy);
       return row;
     }));
   }
@@ -260,7 +284,7 @@
     renderActions(snapshot.legalActions || []);
     renderEventLog(snapshot.eventLog || []);
     renderOutcome(snapshot.outcome);
-    setConnectionState('connected', state.mode === 'host' ? '主机在线' : '已连接');
+    setConnectionState('connected', state.mode === 'host' ? '主机在线' : state.mode === 'simulation' ? '本地模拟' : '已连接');
   }
 
   async function sendEnvelope(envelope) { return state.transport.send(envelope); }
@@ -342,43 +366,76 @@
     }
   }
 
+  async function closeTransport() {
+    if (!state.transport) return;
+    try { await state.transport.close?.(); } catch { /* replace a failed connection */ }
+    state.transport = null;
+  }
+
+  function setEntryBusy(busy) {
+    for (const id of ['create-room', 'quick-simulate']) {
+      const button = $(id);
+      if (button) button.disabled = busy;
+    }
+  }
+
+  function readPlayerCount() {
+    const value = Number($('player-count').value);
+    if (value !== Room.PLAYER_COUNT) throw new Error(`312 当前只支持 ${Room.PLAYER_COUNT} 个固定席位`);
+    return value;
+  }
+
   async function startHost() {
     setError(null);
-    state.mode = 'host';
-    state.hostId = id();
-    state.clientId = state.hostId;
-    state.room = roomCode();
-    state.roomState = Room.createRoomState({ room: state.room, hostId: state.hostId, invites: Room.createInvites(['P1', 'P2', 'P3', 'P4']) });
-    state.game = Engine.createGame({ seed: Date.now(), players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
-    state.transport = Room.createRoomTransport({
-      config,
-      handlers: {
-        hello: onHello,
-        command: acceptPlayerCommand,
-        resync: onResync,
-        leave: onLeave,
-      },
-    });
+    setEntryBusy(true);
+    setStatus('正在创建房间…', 'connecting');
     try {
+      readPlayerCount();
+      await closeTransport();
+      state.mode = 'host';
+      state.hostId = id();
+      state.clientId = state.hostId;
+      state.enginePlayerId = 'p1';
+      state.room = roomCode();
+      state.roomState = Room.createRoomState({ room: state.room, hostId: state.hostId, invites: Room.createInvites(['P1', 'P2', 'P3', 'P4']) });
+      state.game = Engine.createGame({ seed: Date.now(), players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
+      state.transport = Room.createRoomTransport({
+        config,
+        handlers: {
+          hello: onHello,
+          command: acceptPlayerCommand,
+          resync: onResync,
+          leave: onLeave,
+        },
+      });
       await state.transport.createRoom({ room: state.room, clientId: state.hostId, hostId: state.hostId, role: 'host' });
       $('room-panel').hidden = false;
       $('room-code').textContent = state.room;
       renderLinks(Room.createSeatLinks(state.roomState, baseUrl()));
       renderRoster([]);
       $('advance-phase').hidden = false;
+      $('advance-phase').textContent = '推进阶段';
       $('debug-link').href = `debug.html#r=${state.room}&h=${encodeURIComponent(state.hostId)}`;
       sessionStorage.setItem('tiny-battle-312-host', JSON.stringify({ room: state.room, hostId: state.hostId }));
       openDebugChannel();
       setStatus('主机已创建，等待四个席位');
       renderSnapshot(Engine.snapshot(state.game, 'p1'));
-    } catch (error) { setError(error); }
+    } catch (error) {
+      await closeTransport();
+      $('room-panel').hidden = true;
+      setStatus('创建失败，请检查 Supabase 配置或网络后重试', 'error');
+      setError(error);
+    } finally {
+      setEntryBusy(false);
+    }
   }
 
   async function startPlayer() {
     setError(null);
+    setStatus('正在读取座位链接…', 'connecting');
     try {
-      const link = $('player-link').value.trim() || location.href;
-      const seat = Room.parseSeatFragment(new URL(link).hash);
+      const seat = readSeatLink();
+      $('player-seat').textContent = `正在自动加入 P${seat.seat}（${seat.name}）…`;
       state.room = seat.room;
       state.enginePlayerId = Room.enginePlayerId(seat.seat);
       state.clientId = `${seat.room}-seat-${seat.seat}-${persistentSeatIdentity(seat.room, seat.seat)}`;
@@ -390,27 +447,69 @@
           reject: (message) => setError(message.payload?.reason || '请求被主机拒绝'),
         },
       });
-      await state.transport.join({ room: seat.room, seat: seat.seat, token: seat.token, clientId: state.clientId, name: $('player-name').value.trim() || `P${seat.seat}` });
+      await state.transport.join({ room: seat.room, seat: seat.seat, token: seat.token, clientId: state.clientId, name: seat.name });
       $('room-panel').hidden = false;
       $('room-code').textContent = state.room;
+      $('player-seat').textContent = `已自动加入 P${seat.seat}（${seat.name}）`;
       setStatus(`已连接到 P${seat.seat}，等待主机状态`);
-    } catch (error) { setError(error); }
+    } catch (error) {
+      $('player-seat').textContent = '自动入座失败，请重新打开有效的席位链接。';
+      setStatus('自动入座失败，请检查链接、网络或 Supabase 配置', 'error');
+      setError(error);
+    }
+  }
+
+  async function startQuickSimulation() {
+    setError(null);
+    setEntryBusy(true);
+    try {
+      readPlayerCount();
+      await closeTransport();
+      state.mode = 'simulation';
+      state.hostId = null;
+      state.clientId = id();
+      state.enginePlayerId = 'p1';
+      state.room = null;
+      state.roomState = null;
+      state.game = Engine.createGame({ seed: 312, players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
+      $('room-panel').hidden = true;
+      $('advance-phase').hidden = false;
+      $('advance-phase').textContent = '下一阶段';
+      setStatus('快速模拟已开始，可直接查看并操作 P1');
+      renderSnapshot(Engine.snapshot(state.game, 'p1'));
+    } catch (error) {
+      setStatus('快速模拟无法开始', 'error');
+      setError(error);
+    } finally {
+      setEntryBusy(false);
+    }
   }
 
   async function submitAction(action) {
-    if (!state.snapshot || !state.transport || state.mode === 'host') return;
+    if (!state.snapshot) return;
+    if (state.mode === 'simulation') {
+      try {
+        state.game = Engine.applyCommand(state.game, { seq: state.snapshot.seq, playerId: state.enginePlayerId, action }).state;
+        settleAutomatic();
+        renderSnapshot(Engine.snapshot(state.game, state.enginePlayerId));
+      } catch (error) { setError(error); }
+      return;
+    }
+    if (!state.transport || state.mode === 'host') return;
     try {
       await state.transport.sendCommand({ seq: state.snapshot.seq, playerId: state.enginePlayerId, action });
     } catch (error) { setError(error); }
   }
 
   async function advanceHost() {
-    if (state.mode !== 'host' || !state.game) return;
+    if (!['host', 'simulation'].includes(state.mode) || !state.game) return;
     state.game = Engine.advance(state.game);
     settleAutomatic();
-    renderSnapshot(Engine.snapshot(state.game, 'p1'));
-    await sendRoster();
-    await broadcastState();
+    renderSnapshot(Engine.snapshot(state.game, state.enginePlayerId || 'p1'));
+    if (state.mode === 'host') {
+      await sendRoster();
+      await broadcastState();
+    }
   }
 
   function publishDebug() {
@@ -441,13 +540,12 @@
     };
   }
 
-  $('host-mode').addEventListener('click', () => showMode('host'));
-  $('player-mode').addEventListener('click', () => showMode('player'));
   $('create-room').addEventListener('click', startHost);
-  $('join-room').addEventListener('click', startPlayer);
+  $('quick-simulate').addEventListener('click', startQuickSimulation);
   $('advance-phase').addEventListener('click', advanceHost);
   window.addEventListener('pagehide', () => {
     if (state.mode === 'player' && state.transport) state.transport.leave();
   });
   showMode(state.mode);
+  if (state.mode === 'player') void startPlayer();
 })();
