@@ -29,6 +29,44 @@ test('home page exposes phase, board, resources, hand, legal actions, log, and o
   }
 });
 
+test('home page provides the unified game shell and information hierarchy', () => {
+  const html = read('index.html');
+  for (const id of ['phase-rail', 'player-overview', 'resource-strip', 'hand-panel', 'action-panel', 'event-panel']) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /class=["'][^"']*app-shell/);
+  assert.match(html, /class=["'][^"']*board-card/);
+  assert.match(read('app.js'), /dataset\.actionType/);
+});
+
+test('home page exposes dynamic resource and board legends instead of sketch-only copy', () => {
+  const html = read('index.html');
+  assert.match(html, /id=["']resource-gold["']/);
+  assert.match(html, /id=["']resource-wood["']/);
+  assert.match(html, /id=["']resource-food["']/);
+  assert.match(html, /id=["']board-legend["']/);
+  assert.match(html, /id=["']current-player["']/);
+  assert.doesNotMatch(html, /黑总部 15/);
+});
+
+test('app renderer formats live resource cards and readable action labels', () => {
+  const app = read('app.js');
+  assert.match(app, /function renderResourceStrip/);
+  assert.match(app, /function actionLabel/);
+  assert.match(app, /`resource-\$\{resource\}`/);
+  assert.match(app, /dataset\.actionType/);
+  assert.match(app, /snapshot\.players/);
+});
+
+test('unified stylesheet defines the light board layout and responsive panels', () => {
+  const css = read('styles.css');
+  assert.match(css, /--color-primary/);
+  assert.match(css, /\.app-shell/);
+  assert.match(css, /\.board-card/);
+  assert.match(css, /@media/);
+  assert.match(css, /\.phase-rail/);
+});
+
 test('host debug page contains four private perspective panels and seat-link controls', () => {
   const html = read('debug.html');
   assert.match(html, /host-only|host/i);

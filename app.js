@@ -16,8 +16,41 @@
     debugChannel: null,
   };
 
-  function setStatus(message) { $('status').textContent = message; }
-  function setError(error) { $('error').textContent = error ? (error.message || String(error)) : ''; }
+  const PHASE_LABELS = {
+    exploration: '探索',
+    production: '产出',
+    purchase: '购买',
+    action: '行动',
+    combat: '战斗',
+    black: '黑方行动',
+    ended: '已结束',
+  };
+  const ACTION_LABELS = {
+    pass: '结束行动',
+    pass_purchase: '结束购牌',
+    purchase_face_up: '购买明牌',
+    purchase_blind: '购买盲牌',
+    build: '建造',
+    recruit: '招募',
+    deploy: '部署兵力',
+    dispatch: '派遣',
+  };
+  const CARD_LABELS = { farm: '农场', goldmine: '金矿', lumber: '伐木场', barracks: '兵营', monument: '纪念碑' };
+
+  function setConnectionState(value, message) {
+    const chip = $('connection-chip');
+    if (!chip) return;
+    chip.dataset.state = value;
+    if (message) chip.textContent = message;
+  }
+  function setStatus(message, connection = 'connected') {
+    $('status').textContent = message;
+    setConnectionState(connection, message);
+  }
+  function setError(error) {
+    $('error').textContent = error ? (error.message || String(error)) : '';
+    if (error) setConnectionState('error', '连接异常');
+  }
   function id() {
     const key = 'tiny-battle-312-client-id';
     const existing = sessionStorage.getItem(key);
@@ -41,11 +74,26 @@
     state.mode = mode;
     $('host-panel').hidden = mode !== 'host';
     $('player-panel').hidden = mode !== 'player';
+    $('host-mode').classList.toggle('is-active', mode === 'host');
+    $('player-mode').classList.toggle('is-active', mode === 'player');
+    $('host-mode').setAttribute('aria-selected', String(mode === 'host'));
+    $('player-mode').setAttribute('aria-selected', String(mode === 'player'));
     if (mode === 'player' && location.hash.startsWith('#r=')) $('player-link').value = location.href;
   }
 
   function renderRoster(roster = []) {
-    $('roster').textContent = roster.length ? roster.map((player) => `P${player.seat}: ${player.name}`).join(' · ') : '等待四个席位加入';
+    const players = new Map(roster.map((player) => [player.seat, player]));
+    $('roster').replaceChildren(...[1, 2, 3, 4].map((seat) => {
+      const player = players.get(seat);
+      const card = document.createElement('div');
+      card.className = `roster-seat${player ? ' is-ready' : ''}`;
+      const seatLabel = document.createElement('strong');
+      seatLabel.textContent = `P${seat}`;
+      const playerLabel = document.createElement('span');
+      playerLabel.textContent = player ? player.name : '等待加入';
+      card.append(seatLabel, playerLabel);
+      return card;
+    }));
   }
 
   function renderLinks(links) {
@@ -73,37 +121,146 @@
   function renderBoard(snapshot) {
     $('board').replaceChildren(...snapshot.board.map((tile) => {
       const cell = document.createElement('div');
-      cell.className = `tile ${tile.explored ? tile.kind : 'unknown'}`;
-      const owner = tile.owner ? tile.owner.toUpperCase() : '—';
-      cell.textContent = `${tile.coord.join(',')} ${tile.explored ? owner : '?'}${tile.building ? ` ${tile.building}` : ''}`;
+      const ownerClass = tile.owner ? ` owner-${tile.owner.replace('_', '-')}` : '';
+      cell.className = `tile ${tile.explored ? tile.kind : 'unknown'}${ownerClass}`;
+      const owner = tile.owner === 'black' ? '黑方' : tile.owner ? tile.owner.toUpperCase() : '—';
+      const building = tile.building ? CARD_LABELS[tile.building] || tile.building : '';
+      const garrison = tile.garrison ? Object.values(tile.garrison).reduce((sum, count) => sum + count, 0) : 0;
+      const expedition = tile.expeditions?.length ? `远征 ${tile.expeditions.length}` : '';
+      cell.setAttribute('aria-label', `${tile.coord.join(',')} ${tile.explored ? owner : '未知'} ${building} ${expedition}`.trim());
+      const coord = document.createElement('span');
+      coord.className = 'tile-coord';
+      coord.textContent = tile.coord.join(',');
+      const main = document.createElement('span');
+      main.className = 'tile-main';
+      main.textContent = tile.explored ? (tile.kind === 'black_hq' ? '黑总部' : owner) : '未知';
+      const detail = document.createElement('span');
+      detail.className = 'tile-detail';
+      detail.textContent = building || (garrison ? `驻军 ${garrison}` : expedition);
+      cell.append(coord, main, detail);
       return cell;
     }));
+  }
+
+  function formatPhase(phase) { return PHASE_LABELS[phase] || phase || '—'; }
+  function countForces(forces = {}) { return Object.values(forces).reduce((sum, count) => sum + (count || 0), 0); }
+  function renderResourceStrip(player) {
+    const resources = player?.resources || {};
+    for (const resource of ['gold', 'wood', 'food']) $(
+      `resource-${resource}`
+    ).textContent = resources[resource] ?? 0;
+    $('resources').textContent = JSON.stringify(resources);
+    $('ap-value').textContent = player?.ap ?? 0;
+    $('units-value').textContent = countForces(player?.reserve);
+    $('score-value').textContent = player?.score ?? 0;
+  }
+
+  function actionLabel(action) {
+    const label = ACTION_LABELS[action.type] || action.type || '行动';
+    if (action.card) return `${label} · ${CARD_LABELS[action.card] || action.card}`;
+    if (action.building) return `${label} · ${CARD_LABELS[action.building] || action.building}`;
+    if (action.unit) return `${label} · ${action.unit} ×${action.count || 1}`;
+    if (action.to) return `${label} · ${action.to.join(',')}`;
+    return label;
+  }
+
+  function actionMeta(action) {
+    if (action.at) return `目标 ${action.at.join(',')}`;
+    if (action.from && action.to) return `${action.from.join(',')} → ${action.to.join(',')}`;
+    if (action.route?.length) return `路线 ${action.route.length} 格`;
+    return '';
+  }
+
+  function renderHand(hand = []) {
+    $('hand-count').textContent = hand.length;
+    $('hand').replaceChildren(...(hand.length ? hand : []).map((card) => {
+      const item = document.createElement('div');
+      item.className = 'card-chip';
+      const label = document.createElement('span');
+      label.textContent = CARD_LABELS[card] || card;
+      const code = document.createElement('small');
+      code.textContent = card;
+      item.append(label, code);
+      return item;
+    }));
+    if (!hand.length) {
+      const empty = document.createElement('span');
+      empty.className = 'muted';
+      empty.textContent = '暂无手牌';
+      $('hand').append(empty);
+    }
+  }
+
+  function renderActions(actions) {
+    $('legal-actions').replaceChildren(...actions.map((action) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'action-button';
+      button.dataset.actionType = action.type;
+      const label = document.createElement('span');
+      label.className = 'action-type';
+      label.textContent = actionLabel(action);
+      const meta = document.createElement('span');
+      meta.className = 'action-meta';
+      meta.textContent = actionMeta(action);
+      button.append(label, meta);
+      button.addEventListener('click', () => submitAction(action));
+      return button;
+    }));
+    if (!actions.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = '当前没有可执行行动';
+      $('legal-actions').append(empty);
+    }
+  }
+
+  function renderEventLog(events = []) {
+    $('event-log').replaceChildren(...(events.length ? events : []).map((event) => {
+      const item = document.createElement('li');
+      const label = event.type || event.name || '对局事件';
+      const detail = event.card ? CARD_LABELS[event.card] || event.card : event.reason || event.resource || '';
+      item.textContent = detail ? `${label} · ${typeof detail === 'object' ? JSON.stringify(detail) : detail}` : label;
+      return item;
+    }));
+    if (!events.length) {
+      const empty = document.createElement('li');
+      empty.className = 'muted';
+      empty.textContent = '等待第一条事件';
+      $('event-log').append(empty);
+    }
+  }
+
+  function renderOutcome(result) {
+    const outcome = $('outcome');
+    if (!result || result.status === 'ongoing') {
+      outcome.textContent = '';
+      return;
+    }
+    const title = result.status === 'win' ? '玩家方胜利' : '玩家方失败';
+    const reason = result.reason ? ` · ${result.reason}` : '';
+    const ranking = (result.ranking || []).map((entry) => `P${entry.playerId.replace('p', '')} ${entry.score} 分`).join('　');
+    outcome.textContent = `${title}${reason}　${ranking}`;
   }
 
   function renderSnapshot(snapshot) {
     if (!snapshot) return;
     state.snapshot = snapshot;
     $('game-panel').hidden = false;
-    $('phase').textContent = snapshot.phase;
+    $('phase').textContent = formatPhase(snapshot.phase);
     $('round').textContent = snapshot.round;
     $('sequence').textContent = snapshot.seq;
+    const active = snapshot.players.find((player) => player.seat === snapshot.activeSeat);
+    $('current-player').textContent = active ? `P${active.seat} ${active.name}` : '—';
     renderBoard(snapshot);
     const me = snapshot.players.find((player) => player.id === state.enginePlayerId) || snapshot.players[0];
-    $('resources').textContent = JSON.stringify(me?.resources || {}, null, 2);
-    $('hand').textContent = JSON.stringify(me?.hand || [], null, 2);
-    const actions = snapshot.legalActions || [];
-    $('legal-actions').replaceChildren(...actions.map((action) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = action.type;
-      button.addEventListener('click', () => submitAction(action));
-      return button;
-    }));
-    $('event-log').textContent = JSON.stringify(snapshot.eventLog || [], null, 2);
-    const result = snapshot.outcome;
-    $('outcome').textContent = result && result.status !== 'ongoing'
-      ? `${result.status === 'win' ? '玩家方胜利' : '玩家方失败'}：${result.reason || ''}\n${JSON.stringify(result.ranking)}`
-      : '';
+    $('player-identity').textContent = me ? `P${me.seat} ${me.name}` : '玩家 —';
+    renderResourceStrip(me);
+    renderHand(me?.hand || []);
+    renderActions(snapshot.legalActions || []);
+    renderEventLog(snapshot.eventLog || []);
+    renderOutcome(snapshot.outcome);
+    setConnectionState('connected', state.mode === 'host' ? '主机在线' : '已连接');
   }
 
   async function sendEnvelope(envelope) { return state.transport.send(envelope); }

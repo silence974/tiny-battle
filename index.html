@@ -8,49 +8,131 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>Tiny Battle 312</h1>
-    <a id="debug-link" class="small-button" href="debug.html" target="_blank" rel="noopener">四席视角 / 调试</a>
+    <a class="brand" href="./" aria-label="Tiny Battle 首页">
+      <span class="brand-mark">TB</span>
+      <span>Tiny Battle <small>312</small></span>
+    </a>
+    <div class="topbar-actions">
+      <span id="connection-chip" class="connection-chip" data-state="idle">尚未连接</span>
+      <a id="debug-link" class="text-button" href="debug.html" target="_blank" rel="noopener">四席视角 / 调试</a>
+    </div>
   </header>
-  <main>
-    <section class="card" id="entry">
-      <div class="mode-switch">
-        <button id="host-mode" type="button">我是主机</button>
-        <button id="player-mode" type="button">我是玩家</button>
+
+  <main class="app-shell">
+    <section class="card entry-card" id="entry">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">312 CO-OPERATION</p>
+          <h1>进入对局</h1>
+          <p class="muted">四位玩家共同推进探索、建设与对黑总部的最终进攻。</p>
+        </div>
+        <span class="rule-pill">玩家方共同胜负</span>
       </div>
-      <div id="host-panel">
-        <label>主机名称 <input id="host-name" value="Host" autocomplete="nickname"></label>
-        <button id="create-room" type="button">创建房间</button>
-        <p>主机保持在线，负责运行唯一裁判。</p>
+      <div class="mode-switch" role="tablist" aria-label="选择进入方式">
+        <button id="host-mode" class="mode-tab is-active" type="button" role="tab">创建房间</button>
+        <button id="player-mode" class="mode-tab" type="button" role="tab">加入房间</button>
       </div>
-      <div id="player-panel" hidden>
-        <label>玩家名称 <input id="player-name" value="Player" autocomplete="nickname"></label>
-        <label>座位链接 <input id="player-link" placeholder="粘贴四个座位链接之一"></label>
-        <button id="join-room" type="button">加入房间</button>
+      <div id="host-panel" class="entry-panel">
+        <label>主机名称<input id="host-name" value="Host" autocomplete="nickname"></label>
+        <button id="create-room" class="primary-button" type="button">创建房间</button>
+        <p class="field-help">主机负责运行唯一裁判，创建后请保持此页面在线。</p>
       </div>
-      <p id="status" class="status">尚未连接</p>
-      <p id="error" class="error" role="alert"></p>
+      <div id="player-panel" class="entry-panel" hidden>
+        <div class="form-grid">
+          <label>玩家名称<input id="player-name" value="Player" autocomplete="nickname"></label>
+          <label>座位链接<input id="player-link" placeholder="粘贴 P1–P4 座位链接"></label>
+        </div>
+        <button id="join-room" class="primary-button" type="button">加入房间</button>
+        <p class="field-help">使用主机发来的固定座位链接，刷新后可自动恢复身份。</p>
+      </div>
+      <div class="feedback-line">
+        <p id="status" class="status">尚未连接</p>
+        <p id="error" class="error" role="alert"></p>
+      </div>
     </section>
 
-    <section class="card" id="room-panel" hidden>
-      <div class="room-meta"><span>房间</span> <code id="room-code">—</code> <button id="advance-phase" type="button" hidden>主机推进阶段</button></div>
-      <div id="seat-links" class="seat-links"></div>
-      <div id="roster" class="roster"></div>
+    <section class="card lobby-card" id="room-panel" hidden>
+      <div class="section-heading compact-heading">
+        <div>
+          <p class="eyebrow">ROOM LOBBY</p>
+          <h2>等待队友加入</h2>
+        </div>
+        <div class="room-meta">
+          <span>房间号</span><code id="room-code">—</code>
+          <button id="advance-phase" class="primary-button" type="button" hidden>推进阶段</button>
+        </div>
+      </div>
+      <div class="lobby-grid">
+        <div>
+          <h3>四席状态</h3>
+          <div id="roster" class="seat-roster"></div>
+        </div>
+        <div>
+          <h3>座位链接</h3>
+          <div id="seat-links" class="seat-links"></div>
+        </div>
+      </div>
     </section>
 
-    <section class="card game" id="game-panel" hidden>
-      <div class="summary">
-        <span>阶段 <strong id="phase">—</strong></span>
-        <span>回合 <strong id="round">—</strong></span>
-        <span>序号 <strong id="sequence">—</strong></span>
+    <section class="game-layout" id="game-panel" hidden>
+      <section class="phase-rail card" id="phase-rail" aria-label="对局状态">
+        <div class="phase-item phase-current"><span class="phase-label">当前阶段</span><strong id="phase">—</strong></div>
+        <div class="phase-item"><span class="phase-label">回合</span><strong id="round">—</strong></div>
+        <div class="phase-item"><span class="phase-label">行动序号</span><strong id="sequence">—</strong></div>
+        <div class="phase-item phase-turn"><span class="phase-label">当前行动</span><strong id="current-player">—</strong></div>
+      </section>
+
+      <div class="game-columns">
+        <section class="card board-card">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">WORLD MAP</p>
+              <h2>战场</h2>
+            </div>
+            <div id="board-legend" class="board-legend" aria-label="地图图例">
+              <span><i class="legend-dot legend-player"></i>玩家控制</span>
+              <span><i class="legend-dot legend-black"></i>黑色势力</span>
+              <span><i class="legend-dot legend-unknown"></i>未知</span>
+            </div>
+          </div>
+          <div id="board" class="board" aria-label="7乘7战场棋盘"></div>
+        </section>
+
+        <aside class="player-column">
+          <section class="card player-overview" id="player-overview">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">YOUR SEAT</p>
+                <h2 id="player-identity">玩家 —</h2>
+              </div>
+              <span class="ap-badge">AP <strong id="ap-value">—</strong></span>
+            </div>
+            <div id="resource-strip" class="resource-strip" aria-label="资源">
+              <div class="resource-card resource-gold"><span class="resource-icon">G</span><span>金币</span><strong id="resource-gold">—</strong></div>
+              <div class="resource-card resource-wood"><span class="resource-icon">W</span><span>木材</span><strong id="resource-wood">—</strong></div>
+              <div class="resource-card resource-food"><span class="resource-icon">F</span><span>食物</span><strong id="resource-food">—</strong></div>
+            </div>
+            <span id="resources" class="sr-only" aria-hidden="true"></span>
+            <div class="stat-row"><span>兵力</span><strong id="units-value">—</strong><span>分数</span><strong id="score-value">—</strong></div>
+          </section>
+
+          <section class="card hand-panel" id="hand-panel">
+            <div class="panel-heading"><h2>手牌</h2><span id="hand-count" class="count-badge">0</span></div>
+            <div id="hand" class="card-list" aria-label="手牌列表"></div>
+          </section>
+
+          <section class="card action-panel" id="action-panel">
+            <div class="panel-heading"><div><p class="eyebrow">AVAILABLE NOW</p><h2>可执行行动</h2></div></div>
+            <div id="legal-actions" class="actions"></div>
+          </section>
+        </aside>
       </div>
-      <div id="board" class="board" aria-label="board"></div>
-      <div class="columns">
-        <section><h2>资源</h2><pre id="resources">—</pre></section>
-        <section><h2>手牌</h2><pre id="hand">—</pre></section>
-        <section><h2>行动</h2><div id="legal-actions" class="actions"></div></section>
-      </div>
-      <h2>事件</h2><pre id="event-log">—</pre>
-      <div id="outcome" class="outcome"></div>
+
+      <section class="card event-panel" id="event-panel">
+        <div class="panel-heading"><h2>对局记录</h2><span class="muted">最近 20 条</span></div>
+        <ol id="event-log" class="event-log"><li class="muted">等待第一条事件</li></ol>
+      </section>
+      <section id="outcome" class="outcome" aria-live="polite"></section>
     </section>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
