@@ -187,9 +187,12 @@
       channel = supabase.channel(roomTopic(context.room), { config: { private: true } });
       channel.on('broadcast', { event: 'game312' }, ({ payload }) => handle(payload));
       await new Promise((resolve, reject) => {
-        channel.subscribe((status) => {
+        channel.subscribe((status, error) => {
           if (status === 'SUBSCRIBED') resolve();
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`Supabase channel ${status}`));
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            const detail = error?.message || error?.code || (error ? JSON.stringify(error) : '');
+            reject(new Error(`Supabase channel ${status}${detail ? `: ${detail}` : ''}`));
+          }
         });
       });
       if (context.role !== 'host') {

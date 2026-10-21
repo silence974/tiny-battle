@@ -372,6 +372,25 @@
     state.transport = null;
   }
 
+  function closeDebugChannel() {
+    state.debugChannel?.close?.();
+    state.debugChannel = null;
+  }
+
+  function clearRoomState() {
+    state.hostId = null;
+    state.clientId = null;
+    state.enginePlayerId = null;
+    state.room = null;
+    state.roomState = null;
+    state.game = null;
+    state.snapshot = null;
+    $('room-panel').hidden = true;
+    $('game-panel').hidden = true;
+    $('advance-phase').hidden = true;
+    $('debug-link').href = 'debug.html';
+  }
+
   function setEntryBusy(busy) {
     for (const id of ['create-room', 'quick-simulate']) {
       const button = $(id);
@@ -391,6 +410,7 @@
     setStatus('正在创建房间…', 'connecting');
     try {
       readPlayerCount();
+      closeDebugChannel();
       await closeTransport();
       state.mode = 'host';
       state.hostId = id();
@@ -422,7 +442,8 @@
       renderSnapshot(Engine.snapshot(state.game, 'p1'));
     } catch (error) {
       await closeTransport();
-      $('room-panel').hidden = true;
+      closeDebugChannel();
+      clearRoomState();
       setStatus('创建失败，请检查 Supabase 配置或网络后重试', 'error');
       setError(error);
     } finally {
@@ -434,6 +455,7 @@
     setError(null);
     setStatus('正在读取座位链接…', 'connecting');
     try {
+      await closeTransport();
       const seat = readSeatLink();
       $('player-seat').textContent = `正在自动加入 P${seat.seat}（${seat.name}）…`;
       state.room = seat.room;
@@ -453,10 +475,70 @@
       $('player-seat').textContent = `已自动加入 P${seat.seat}（${seat.name}）`;
       setStatus(`已连接到 P${seat.seat}，等待主机状态`);
     } catch (error) {
+      await closeTransport();
+      clearRoomState();
       $('player-seat').textContent = '自动入座失败，请重新打开有效的席位链接。';
       setStatus('自动入座失败，请检查链接、网络或 Supabase 配置', 'error');
       setError(error);
     }
+  }
+
+  function simulationActionsForSeat(seat) {
+    const probe = JSON.parse(JSON.stringify(state.game));
+    probe.activeSeat = seat;
+    const player = probe.players.find((candidate) => candidate.seat === seat);
+    return Engine.legalActions(probe, player.id, window.CONFIG_312);
+  }
+
+  function chooseSimulationAction(actions, phase, cycleMode) {
+    if (phase === 'purchase') {
+      return actions.find((action) => action.type === 'purchase_face_up' && ['farm', 'goldmine', 'lumber'].includes(action.card))
+        || actions.find((action) => action.type === 'purchase_face_up')
+        || actions.find((action) => action.type === 'purchase_blind')
+        || actions.find((action) => action.type === 'pass_purchase');
+    }
+    if (cycleMode === 'pass') return actions.find((action) => action.type === 'pass');
+    return actions.find((action) => action.type === 'build' && ['farm', 'goldmine', 'lumber'].includes(action.building))
+      || actions.find((action) => action.type === 'build')
+      || actions.find((action) => action.type === 'dispatch')
+      || actions.find((action) => action.type === 'deploy')
+      || actions.find((action) => action.type === 'recruit')
+      || actions.find((action) => action.type === 'pass');
+  }
+
+  function runQuickSimulation() {
+    let steps = 0;
+    let actionCycleMode = null;
+    const counts = {};
+    while (!state.game.result && steps < 512) {
+      if (state.game.phase === 'purchase') {
+        actionCycleMode = null;
+        const player = state.game.players.find((candidate) => candidate.seat === state.game.activeSeat);
+        const actions = Engine.legalActions(state.game, player.id, window.CONFIG_312);
+        const action = chooseSimulationAction(actions, state.game.phase, actionCycleMode);
+        if (!action) throw new Error('快速模拟无法继续：购牌阶段没有可用行动');
+        counts[action.type] = (counts[action.type] || 0) + 1;
+        state.game = Engine.applyCommand(state.game, { seq: state.game.seq, playerId: player.id, action }).state;
+      } else if (state.game.phase === 'action') {
+        if (state.game.activeSeat === 1 && state.game.players.every((player) => !player.passed)) {
+          const available = state.game.players.map((player) => simulationActionsForSeat(player.seat).filter((action) => action.type !== 'pass'));
+          actionCycleMode = available.every((actions) => actions.length > 0) ? 'play' : 'pass';
+        }
+        const player = state.game.players.find((candidate) => candidate.seat === state.game.activeSeat);
+        const actions = Engine.legalActions(state.game, player.id, window.CONFIG_312);
+        const action = chooseSimulationAction(actions, state.game.phase, actionCycleMode);
+        if (!action) throw new Error(`快速模拟无法继续：行动阶段 P${player.seat} 没有可用行动`);
+        counts[action.type] = (counts[action.type] || 0) + 1;
+        state.game = Engine.applyCommand(state.game, { seq: state.game.seq, playerId: player.id, action }).state;
+      } else {
+        state.game = Engine.advance(state.game);
+        settleAutomatic();
+        if (state.game.phase !== 'action') actionCycleMode = null;
+      }
+      steps += 1;
+    }
+    if (!state.game.result) throw new Error('快速模拟超过安全步数，未能结束');
+    return { steps, counts };
   }
 
   async function startQuickSimulation() {
@@ -464,6 +546,7 @@
     setEntryBusy(true);
     try {
       readPlayerCount();
+      closeDebugChannel();
       await closeTransport();
       state.mode = 'simulation';
       state.hostId = null;
@@ -473,9 +556,13 @@
       state.roomState = null;
       state.game = Engine.createGame({ seed: 312, players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
       $('room-panel').hidden = true;
-      $('advance-phase').hidden = false;
-      $('advance-phase').textContent = '下一阶段';
-      setStatus('快速模拟已开始，可直接查看并操作 P1');
+      const { steps, counts } = runQuickSimulation();
+      $('advance-phase').hidden = true;
+      const activity = ['purchase_face_up', 'purchase_blind', 'build', 'dispatch', 'deploy', 'recruit']
+        .filter((type) => counts[type])
+        .map((type) => `${ACTION_LABELS[type]} ${counts[type]}`)
+        .join(' · ');
+      setStatus(`快速模拟完成：${state.game.result.status === 'win' ? '玩家方胜利' : '玩家方失败'}（${steps} 步${activity ? `；${activity}` : ''}）`);
       renderSnapshot(Engine.snapshot(state.game, 'p1'));
     } catch (error) {
       setStatus('快速模拟无法开始', 'error');

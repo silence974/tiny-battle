@@ -123,6 +123,20 @@ test('anonymous session JWT is forwarded to Supabase Realtime auth', async () =>
   await transport.leave();
 });
 
+test('Realtime subscription errors preserve the provider diagnostic', async () => {
+  const channel = {
+    on() { return this; },
+    subscribe(callback) { callback('CHANNEL_ERROR', { message: 'MissingPartition: test partition' }); return this; },
+  };
+  const client = {
+    auth: { signInAnonymously: async () => ({ data: { session: { access_token: 'jwt' } }, error: null }) },
+    realtime: { setAuth() {} },
+    channel() { return channel; },
+  };
+  const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
+  await assert.rejects(() => transport.join({ room: 'ABCD2345', clientId: 'host-1', hostId: 'host-1', role: 'host' }), /MissingPartition: test partition/);
+});
+
 test('player join waits for the host seat confirmation snapshot', async () => {
   const channels = [];
   const client = {
