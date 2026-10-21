@@ -33,8 +33,8 @@
           <button id="create-room" class="primary-button entry-action" type="button">创建房间</button>
           <button id="quick-simulate" class="secondary-button entry-action" type="button">快速模拟</button>
         </div>
-        <label class="player-count-field">对局人数<input id="player-count" type="number" min="4" max="4" value="4" inputmode="numeric"></label>
-        <p class="field-help">312 当前按四个固定席位运行；座位链接由房主生成后，点击链接即可自动入座。</p>
+        <label class="player-count-field">对局人数<input id="player-count" type="number" min="4" max="4" value="4" inputmode="numeric" readonly aria-label="312 固定四席"></label>
+        <p class="field-help">312 规则锁定四个席位；建房和快速模拟都会使用 P1–P4，人数框仅展示当前规则值，不是可调参数。座位链接由房主生成后，点击链接即可自动入座。</p>
       </div>
       <div id="player-panel" class="entry-panel" hidden>
         <p id="player-seat" class="player-seat-message">正在读取座位链接，准备自动入座…</p>

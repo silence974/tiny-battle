@@ -44,6 +44,8 @@ test('quick simulation keeps the 312 four-seat rule explicit', () => {
   const app = read('app.js');
   assert.match(html, /id=["']player-count["'][^>]*type=["']number["']/);
   assert.match(html, /value=["']4["']/);
+  assert.match(html, /id=["']player-count["'][^>]*readonly/);
+  assert.match(html, /规则锁定四个席位/);
   assert.match(app, /function startQuickSimulation/);
   assert.match(app, /function runQuickSimulation/);
   assert.match(app, /purchase_face_up/);
