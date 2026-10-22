@@ -254,6 +254,7 @@
         id: `hq-${index}`,
         axis: index === 0 ? '0–5' : '6+',
         label: `容量 ${tier.minCapacity}–${tier.maxCapacity >= 999 ? '以上' : tier.maxCapacity}`,
+        production: { gold: tier.gold || 0, wood: tier.wood || 0, food: tier.food || 0 },
         output: tileProductionLabel({ gold: tier.gold || 0, wood: tier.wood || 0, food: tier.food || 0 }),
       }));
       const active = (config.hqProductionTiers || []).findIndex((tier) => capacity >= tier.minCapacity && capacity <= tier.maxCapacity);
@@ -261,10 +262,27 @@
     }
     if (!building?.production) return { capacity: 0, activeTier: 0, tiers: [] };
     const tiers = [
-      { id: 3, axis: 'Max', label: '容量 3', output: `+${building.production.tier3} ${RESOURCE_LABELS[building.production.resource] || building.production.resource}` },
-      { id: 2, axis: '', label: '容量 2', output: `+${building.production.tier2} ${RESOURCE_LABELS[building.production.resource] || building.production.resource}` },
+      {
+        id: 3,
+        axis: 'Max',
+        label: '容量 3',
+        production: { gold: building.production.resource === 'gold' ? building.production.tier3 : 0, wood: building.production.resource === 'wood' ? building.production.tier3 : 0, food: building.production.resource === 'food' ? building.production.tier3 : 0 },
+        output: `+${building.production.tier3} ${RESOURCE_LABELS[building.production.resource] || building.production.resource}`,
+      },
+      {
+        id: 2,
+        axis: '',
+        label: '容量 2',
+        production: { gold: building.production.resource === 'gold' ? building.production.tier2 : 0, wood: building.production.resource === 'wood' ? building.production.tier2 : 0, food: building.production.resource === 'food' ? building.production.tier2 : 0 },
+        output: `+${building.production.tier2} ${RESOURCE_LABELS[building.production.resource] || building.production.resource}`,
+      },
     ];
     return { capacity, activeTier: capacity >= 3 ? 3 : capacity >= 2 ? 2 : 0, tiers };
+  }
+
+  function currentProductionForTile(tile, tierInfo = productionTierForTile(tile)) {
+    if (!tile.explored || !tierInfo.activeTier) return { gold: 0, wood: 0, food: 0 };
+    return tierInfo.tiers.find((tier) => tier.id === tierInfo.activeTier)?.production || { gold: 0, wood: 0, food: 0 };
   }
 
   function showTileDetail(tile) {
@@ -281,15 +299,16 @@
     preview.className = 'tile tile-inspector-preview';
     preview.setAttribute('aria-label', `地块 ${coord} 预览`);
     renderTileVisual(preview, tile);
-    const production = tile.production || {};
     const building = window.CONFIG_312?.buildings?.[tile.building];
-    const { capacity, activeTier, tiers } = productionTierForTile(tile);
+    const tierInfo = productionTierForTile(tile);
+    const { capacity, activeTier, tiers } = tierInfo;
+    const currentProduction = currentProductionForTile(tile, tierInfo);
     const rows = [
       ['类型', tile.explored ? (tile.kind === 'black_hq' ? '黑总部' : tile.kind) : '未知'],
       ['归属', tileOwnerLabel(tile)],
       ['建筑', tileBuildingLabel(tile)],
       ['驻军', tile.explored ? tileForcesLabel(tile.garrison) : '未知'],
-      ['产出', tile.explored ? tileProductionLabel(production) : '未知'],
+      ['产出', tile.explored ? tileProductionLabel(currentProduction) : '未知'],
       ['控制', tile.explored ? (tile.controlled ? '已控制' : '未控制') : '未知'],
       ['黑方力量', tile.blackPower ? String(tile.blackPower) : '—'],
       ['远征队', tile.expeditions?.length ? String(tile.expeditions.length) : '无'],
@@ -327,7 +346,7 @@
       }));
       const current = document.createElement('p');
       current.className = 'tile-inspector-current';
-      current.textContent = activeTier ? `当前生效：${tiers.find((tier) => tier.id === activeTier)?.label || '已匹配'}（${tileProductionLabel(production)}）` : `当前生效：无产出（容量 ${capacity}）`;
+      current.textContent = activeTier ? `当前生效：${tiers.find((tier) => tier.id === activeTier)?.label || '已匹配'}（${tileProductionLabel(currentProduction)}）` : `当前生效：无产出（容量 ${capacity}）`;
       tierPanel.append(current);
     } else {
       const none = document.createElement('p');

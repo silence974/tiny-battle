@@ -92,6 +92,10 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   const css = read('styles.css');
   assert.match(app, /function renderCardDetail/);
   assert.match(app, /function productionTierForTile/);
+  assert.match(app, /function currentProductionForTile/);
+  assert.match(app, /tileProductionLabel\(currentProduction\)/);
+  assert.doesNotMatch(app, /const production = tile\.production/);
+  assert.doesNotMatch(app, /tileProductionLabel\(production\)/);
   assert.match(app, /tile-inspector-tier/);
   assert.match(app, /tile-inspector-forces/);
   assert.match(config, /tier3: 5/);
