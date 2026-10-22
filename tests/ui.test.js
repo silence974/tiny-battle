@@ -62,6 +62,68 @@ test('home page exposes phase, board, resources, hand, legal actions, log, and o
   }
 });
 
+test('host view is lobby-and-log only and auto-advances non-decision phases', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  assert.match(html, /id=["']host-log["']/);
+  assert.doesNotMatch(html, /id=["']advance-phase["']/);
+  assert.match(app, /function renderHostLog/);
+  assert.match(app, /function settleHostAutomatic/);
+  assert.match(app, /settleHostAutomatic\(\)/);
+  assert.match(app, /state\.mode === 'host'/);
+});
+
+test('board tiles are square and expose an accessible snapshot detail inspector', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(html, /id=["']tile-inspector["']/);
+  assert.match(html, /id=["']tile-inspector-preview["']/);
+  assert.match(app, /function showTileDetail/);
+  assert.match(app, /role["'], ["']button/);
+  assert.match(app, /tile-inspector/);
+  assert.match(css, /\.tile\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
+  assert.match(css, /\.tile-inspector-preview\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
+});
+
+test('hand cards and building details expose rule-driven tiers, score, costs, and stationed units', () => {
+  const app = read('app.js');
+  const config = read('config-312.js');
+  const css = read('styles.css');
+  assert.match(app, /function renderCardDetail/);
+  assert.match(app, /function productionTierForTile/);
+  assert.match(app, /tile-inspector-tier/);
+  assert.match(app, /tile-inspector-forces/);
+  assert.match(config, /tier3: 5/);
+  assert.match(css, /\.card-chip-header/);
+  assert.match(css, /\.production-tier\.is-active/);
+});
+
+test('player phase guidance is a live vertical step bar with current action hints', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(html, /class=["']phase-steps["']/);
+  assert.match(html, /data-phase=["']purchase["']/);
+  assert.match(html, /id=["']phase-guidance["']/);
+  assert.match(app, /function renderPhaseGuide/);
+  assert.match(app, /snapshot\.legalActions/);
+  assert.match(css, /\.phase-step\.is-current/);
+});
+
+test('four seats use distinct colors across map, overview, and cards', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  for (const seat of [1, 2, 3, 4]) {
+    assert.match(css, new RegExp(`--seat-p${seat}:`));
+    assert.match(css, new RegExp(`\.tile\.owner-p${seat}`));
+    assert.match(app, new RegExp(`seat-color-p\\$\\{seat\\}`));
+  }
+  assert.match(html, /legend-p1/);
+  assert.match(html, /legend-p4/);
+});
+
 test('home page provides the unified game shell and information hierarchy', () => {
   const html = read('index.html');
   for (const id of ['phase-rail', 'player-overview', 'resource-strip', 'hand-panel', 'action-panel', 'event-panel']) {

@@ -190,6 +190,17 @@ function productionForTile(tile, config) {
   return { gold: building.production.resource === 'gold' ? amount : 0, wood: building.production.resource === 'wood' ? amount : 0, food: building.production.resource === 'food' ? amount : 0 };
 }
 
+function currentProductionForTile(tile, config) {
+  if (tile.kind === 'hq' && tile.owner) {
+    const capacity = (tile.garrison.militia || 0) * config.units.militia.capacity
+      + (tile.garrison.guard || 0) * config.units.guard.capacity;
+    const tier = (config.hqProductionTiers || []).find((candidate) => capacity >= candidate.minCapacity && capacity <= candidate.maxCapacity)
+      || config.hqProduction;
+    return { gold: tier.gold || 0, wood: tier.wood || 0, food: tier.food || 0 };
+  }
+  return productionForTile(tile, config);
+}
+
 function recomputeScores(input, config = DEFAULT_CONFIG) {
   const state = clone(input);
   for (const player of state.players) {
@@ -227,8 +238,10 @@ function snapshot(input, viewerId, config = DEFAULT_CONFIG) {
       kind: tile.kind,
       explored: tile.explored,
       owner: tile.owner,
+      controlled: tile.controlled,
       garrison: tile.explored ? clone(tile.garrison) : null,
       building: tile.explored ? tile.building : null,
+      production: tile.explored ? clone(currentProductionForTile(tile, config)) : null,
       blackPower: tile.kind.startsWith('black') ? tile.blackPower : null,
       expeditions: state.expeditions.filter((expedition) => sameCoord(expedition.target, tile.coord)).map((expedition) => ({ playerId: expedition.playerId, power: expedition.power })),
     })),

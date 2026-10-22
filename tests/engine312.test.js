@@ -59,6 +59,7 @@ test('candidate 312 config locks the board, phases, costs, and disputed boundari
   assert.equal(CONFIG.rules.blackExpansionUnknownKeepsEvent, false);
   assert.equal(CONFIG.rules.postBlackEventFailure, 'neutral');
   assert.equal(CONFIG.rules.buildRequiresControl, false);
+  assert.equal(CONFIG.buildings.farm.production.tier3, 5);
   assert.deepEqual(CONFIG.hqProductionTiers[0], { minCapacity: 0, maxCapacity: 5, gold: 1, wood: 1, food: 0 });
   assert.deepEqual(CONFIG.hqProductionTiers[1], { minCapacity: 6, maxCapacity: 999, gold: 3, wood: 2, food: 0 });
 });
@@ -74,6 +75,11 @@ test('initial state is deterministic and snapshots hide another player hand', ()
   const viewer = Engine.snapshot(first, 'p1');
   assert.deepEqual(viewer.players.find((p) => p.id === 'p1').hand, first.players[0].hand);
   assert.equal('hand' in viewer.players.find((p) => p.id === 'p2'), false);
+  const farm = setControlledTile(first, 'p1', [1, 1], { militia: 1, guard: 1 });
+  farm.building = 'farm';
+  const farmSnapshot = Engine.snapshot(first, 'p1').board.find((candidate) => candidate.coord.join(',') === '1,1');
+  assert.equal(farmSnapshot.controlled, true);
+  assert.deepEqual(farmSnapshot.production, { gold: 0, wood: 0, food: 5 });
 });
 
 test('advance follows exploration, production, purchase, action, combat, and black order', () => {

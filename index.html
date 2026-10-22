@@ -54,7 +54,6 @@
         </div>
         <div class="room-meta">
           <span>房间号</span><code id="room-code">—</code>
-          <button id="advance-phase" class="primary-button" type="button" hidden>推进阶段</button>
         </div>
       </div>
       <div class="lobby-grid">
@@ -66,17 +65,14 @@
           <h3>座位链接</h3>
           <div id="seat-links" class="seat-links"></div>
         </div>
+        <div class="host-log-panel">
+          <div class="panel-heading"><h3>主机记录</h3><span class="muted">公开阶段与共同结果</span></div>
+          <ol id="host-log" class="event-log"><li class="muted">等待对局开始</li></ol>
+        </div>
       </div>
     </section>
 
     <section class="game-layout" id="game-panel" hidden>
-      <section class="phase-rail card" id="phase-rail" aria-label="对局状态">
-        <div class="phase-item phase-current"><span class="phase-label">当前阶段</span><strong id="phase">—</strong></div>
-        <div class="phase-item"><span class="phase-label">回合</span><strong id="round">—</strong></div>
-        <div class="phase-item"><span class="phase-label">行动序号</span><strong id="sequence">—</strong></div>
-        <div class="phase-item phase-turn"><span class="phase-label">当前行动</span><strong id="current-player">—</strong></div>
-      </section>
-
       <div class="game-columns">
         <section class="card board-card">
           <div class="panel-heading">
@@ -85,7 +81,10 @@
               <h2>战场</h2>
             </div>
             <div id="board-legend" class="board-legend" aria-label="地图图例">
-              <span><i class="legend-dot legend-player"></i>玩家控制</span>
+              <span><i class="legend-dot legend-p1"></i>P1</span>
+              <span><i class="legend-dot legend-p2"></i>P2</span>
+              <span><i class="legend-dot legend-p3"></i>P3</span>
+              <span><i class="legend-dot legend-p4"></i>P4</span>
               <span><i class="legend-dot legend-black"></i>黑色势力</span>
               <span><i class="legend-dot legend-unknown"></i>未知</span>
             </div>
@@ -93,7 +92,38 @@
           <div id="board" class="board" aria-label="7乘7战场棋盘"></div>
         </section>
 
+        <section id="tile-inspector" class="card tile-inspector" hidden role="dialog" aria-label="地块详情">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">TILE DETAIL</p>
+              <h2 id="tile-inspector-title">地块详情</h2>
+            </div>
+            <button id="close-tile-inspector" type="button" aria-label="关闭地块详情">关闭</button>
+          </div>
+          <div class="tile-inspector-layout">
+            <div id="tile-inspector-preview" class="tile tile-inspector-preview" aria-label="地块预览"></div>
+            <div id="tile-inspector-copy" class="tile-inspector-copy"></div>
+          </div>
+        </section>
+
         <aside class="player-column">
+          <section class="phase-rail card" id="phase-rail" aria-label="对局阶段步骤">
+            <div class="phase-steps" aria-label="阶段步骤">
+              <div class="phase-step" data-phase="exploration"><span class="phase-step-dot">1</span><span><span class="phase-label">探索</span><strong>发现地图与事件</strong></span></div>
+              <div class="phase-step" data-phase="production"><span class="phase-step-dot">2</span><span><span class="phase-label">产出</span><strong>结算资源</strong></span></div>
+              <div class="phase-step" data-phase="purchase"><span class="phase-step-dot">3</span><span><span class="phase-label">购牌</span><strong>明牌 / 盲牌</strong></span></div>
+              <div class="phase-step" data-phase="action"><span class="phase-step-dot">4</span><span><span class="phase-label">行动</span><strong>建设与调度</strong></span></div>
+              <div class="phase-step" data-phase="combat"><span class="phase-step-dot">5</span><span><span class="phase-label">战斗</span><strong>同时解决冲突</strong></span></div>
+              <div class="phase-step" data-phase="black"><span class="phase-step-dot">6</span><span><span class="phase-label">黑方</span><strong>扩张与抽牌</strong></span></div>
+              <div class="phase-step" data-phase="ended"><span class="phase-step-dot">✓</span><span><span class="phase-label">终局</span><strong>共同结果与排名</strong></span></div>
+            </div>
+            <div class="phase-summary">
+              <div><span class="phase-label">当前阶段</span><strong id="phase">—</strong></div>
+              <div><span class="phase-label">回合 / 序号</span><strong><span id="round">—</span> / <span id="sequence">—</span></strong></div>
+              <div><span class="phase-label">当前行动</span><strong id="current-player">—</strong></div>
+            </div>
+            <p id="phase-guidance" class="phase-guidance">等待主机状态</p>
+          </section>
           <section class="card player-overview" id="player-overview">
             <div class="panel-heading">
               <div>

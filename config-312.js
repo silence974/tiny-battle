@@ -35,7 +35,7 @@ const CONFIG = {
     farm: {
       buyGold: 2,
       build: { gold: 1, wood: 1, food: 0 },
-      production: { resource: 'food', tier2: 2, tier3: 4 },
+      production: { resource: 'food', tier2: 2, tier3: 5 },
       points: 1,
     },
     goldmine: {
