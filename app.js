@@ -36,6 +36,8 @@
     game: null,
     started: false,
     snapshot: null,
+    hand: [],
+    handPage: 0,
     transport: null,
     debugChannel: null,
   };
@@ -61,6 +63,7 @@
     dispatch: '派遣',
   };
   const CARD_LABELS = { farm: '农场', goldmine: '金矿', lumber: '伐木场', barracks: '兵营', monument: '纪念碑' };
+  const HAND_PAGE_SIZE = 4;
 
   function setConnectionState(value, message) {
     const chip = $('connection-chip');
@@ -437,14 +440,19 @@
     meta.hidden = false;
   }
 
-  function renderPlayerRoster(players = [], activeSeat, round) {
+  function renderPlayerRoster(players = [], activeSeat, round, result) {
     const bySeat = new Map(players.map((player) => [player.seat, player]));
-    $('turn-order').textContent = `第 ${round ?? '—'} 轮 · ${activeSeat ? `P${activeSeat} 行动` : '等待行动'}`;
+    const ended = result && result.status !== 'ongoing';
+    const rankingByPlayer = new Map((result?.ranking || []).map((entry) => [entry.playerId, entry]));
+    $('turn-order').textContent = ended
+      ? `终局 · ${result.status === 'win' ? '共同胜利' : '共同失败'}`
+      : `第 ${round ?? '—'} 轮 · ${activeSeat ? `P${activeSeat} 行动` : '等待行动'}`;
     const orderedSeats = [1, 2, 3, 4];
     $('player-roster-list').replaceChildren(...orderedSeats.map((seat, orderIndex) => {
       const player = bySeat.get(seat);
       const card = document.createElement('article');
-      card.className = `player-roster-card seat-color-p${seat}${player && player.seat === activeSeat ? ' is-active' : ''}`;
+      const activeClass = ended ? '' : (player && player.seat === activeSeat ? ' is-active' : '');
+      card.className = `player-roster-card seat-color-p${seat}${activeClass}`;
       card.dataset.seat = String(seat);
       const heading = document.createElement('div');
       heading.className = 'player-roster-heading';
@@ -455,7 +463,10 @@
       identity.textContent = player ? `P${seat} ${player.name}` : `P${seat}`;
       const status = document.createElement('span');
       status.className = 'player-roster-status';
-      status.textContent = player ? (player.seat === activeSeat ? '当前行动' : '已入座') : '等待加入';
+      const rankingEntry = player && rankingByPlayer.get(player.id);
+      status.textContent = ended
+        ? (rankingEntry ? `第${rankingEntry.rank}名` : '已结束')
+        : (player ? (player.seat === activeSeat ? '当前行动' : '已入座') : '等待加入');
       const identityWrap = document.createElement('span');
       identityWrap.className = 'player-roster-identity';
       identityWrap.append(order, identity);
@@ -493,19 +504,33 @@
     return '';
   }
 
-  function renderHand(hand = []) {
-    $('hand-count').textContent = hand.length;
-    $('hand').replaceChildren(...(hand.length ? hand : []).map((card) => {
+  function renderHandPage(hand = state.hand) {
+    state.hand = hand;
+    const pageCount = Math.max(1, Math.ceil(hand.length / HAND_PAGE_SIZE));
+    state.handPage = Math.min(Math.max(state.handPage, 0), pageCount - 1);
+    const start = state.handPage * HAND_PAGE_SIZE;
+    const visibleHand = hand.slice(start, start + HAND_PAGE_SIZE);
+    $('hand-pager').hidden = pageCount <= 1;
+    $('hand-page-label').textContent = `${state.handPage + 1} / ${pageCount}`;
+    $('hand-page-prev').disabled = state.handPage === 0;
+    $('hand-page-next').disabled = state.handPage >= pageCount - 1;
+    $('hand').replaceChildren(...(visibleHand.length ? visibleHand : []).map((card) => {
       const item = document.createElement('div');
       renderCardDetail(item, card);
       return item;
     }));
-    if (!hand.length) {
+    if (!visibleHand.length) {
       const empty = document.createElement('span');
       empty.className = 'muted';
       empty.textContent = '暂无手牌';
       $('hand').append(empty);
     }
+  }
+
+  function renderHand(hand = []) {
+    state.handPage = 0;
+    $('hand-count').textContent = hand.length;
+    renderHandPage(hand);
   }
 
   function renderActions(actions) {
@@ -603,8 +628,12 @@
     $('round').textContent = snapshot.round;
     $('sequence').textContent = snapshot.seq;
     const active = snapshot.players.find((player) => player.seat === snapshot.activeSeat);
-    $('current-player').textContent = active ? `P${active.seat} ${active.name}` : '—';
-    renderPlayerRoster(snapshot.players, snapshot.activeSeat, snapshot.round);
+    const ended = snapshot.outcome?.status && snapshot.outcome.status !== 'ongoing';
+    $('current-player-label').textContent = ended ? '终局结果' : '当前行动';
+    $('current-player').textContent = ended
+      ? (snapshot.outcome.status === 'win' ? '共同胜利' : '共同失败')
+      : (active ? `P${active.seat} ${active.name}` : '—');
+    renderPlayerRoster(snapshot.players, snapshot.activeSeat, snapshot.round, snapshot.outcome);
     renderPhaseGuide(snapshot);
     renderBoard(snapshot);
     const me = snapshot.players.find((player) => player.id === state.enginePlayerId) || snapshot.players[0];
@@ -901,11 +930,11 @@
       || actions.find((action) => action.type === 'pass');
   }
 
-  function runQuickSimulation() {
+  function runQuickSimulation({ maxSteps = 512 } = {}) {
     let steps = 0;
     let actionCycleMode = null;
     const counts = {};
-    while (!state.game.result && steps < 512) {
+    while (!state.game.result && steps < maxSteps) {
       if (state.game.phase === 'purchase') {
         actionCycleMode = null;
         const player = state.game.players.find((candidate) => candidate.seat === state.game.activeSeat);
@@ -932,7 +961,7 @@
       }
       steps += 1;
     }
-    if (!state.game.result) throw new Error('快速模拟超过安全步数，未能结束');
+    if (!state.game.result && maxSteps >= 512) throw new Error('快速模拟超过安全步数，未能结束');
     return { steps, counts };
   }
 
@@ -952,12 +981,16 @@
       state.roomState = null;
       state.game = Engine.createGame({ seed: 312, players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
       $('room-panel').hidden = true;
-      const { steps, counts } = runQuickSimulation();
+      const previewMode = new URLSearchParams(location.search).get('preview') === 'ongoing';
+      const { steps, counts } = runQuickSimulation({ maxSteps: previewMode ? 18 : 512 });
       const activity = ['purchase_face_up', 'purchase_blind', 'build', 'dispatch', 'deploy', 'recruit']
         .filter((type) => counts[type])
         .map((type) => `${ACTION_LABELS[type]} ${counts[type]}`)
         .join(' · ');
-      setStatus(`快速模拟完成：${state.game.result.status === 'win' ? '玩家方胜利' : '玩家方失败'}（${steps} 步${activity ? `；${activity}` : ''}）`);
+      const status = previewMode
+        ? `进行中预览：第 ${state.game.round} 轮 · ${formatPhase(state.game.phase)}`
+        : `快速模拟完成：${state.game.result.status === 'win' ? '玩家方胜利' : '玩家方失败'}`;
+      setStatus(`${status}（${steps} 步${activity ? `；${activity}` : ''}）`);
       renderSnapshot(Engine.snapshot(state.game, 'p1'));
     } catch (error) {
       setStatus('快速模拟无法开始', 'error');
@@ -1013,6 +1046,14 @@
 
   $('create-room').addEventListener('click', startHost);
   $('quick-simulate').addEventListener('click', startQuickSimulation);
+  $('hand-page-prev').addEventListener('click', () => {
+    state.handPage -= 1;
+    renderHandPage();
+  });
+  $('hand-page-next').addEventListener('click', () => {
+    state.handPage += 1;
+    renderHandPage();
+  });
   document.querySelectorAll('.mobile-game-tabs [data-mobile-target]').forEach((button) => {
     button.addEventListener('click', () => setMobilePanel(button.dataset.mobileTarget));
   });

@@ -244,6 +244,10 @@ body.is-game-active .hand-panel, body.is-game-active .action-panel { min-height:
 .stat-row strong { margin-right: .7rem; color: var(--ef-ink); font-family: "Saira", sans-serif; font-variant-numeric: tabular-nums; }
 .count-badge { padding: .26rem .48rem; color: var(--ef-ink); background: var(--ef-signal); font-family: "Saira", sans-serif; font-variant-numeric: tabular-nums; }
 .card-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; margin-top: .8rem; }
+.hand-heading { display: inline-flex; align-items: center; gap: .45rem; }
+.hand-pager { display: flex; align-items: center; gap: .3rem; color: var(--ef-ink-2); font-family: "Saira", sans-serif; font-size: .68rem; font-variant-numeric: tabular-nums; }
+.hand-pager button { min-width: 1.7rem; padding: .18rem .35rem; color: var(--ef-ink); border: 1px solid var(--ef-rule); background: var(--ef-chip); font-family: inherit; font-size: .8rem; line-height: 1; }
+.hand-pager button:disabled { cursor: not-allowed; opacity: .35; }
 .card-chip { display: grid; aspect-ratio: 1 / 1; gap: .55rem; min-height: 0; overflow: hidden; padding: .7rem; color: var(--ef-ink); border: 1px solid var(--ef-ink); background: var(--ef-panel); font-size: 1rem; font-weight: 740; }
 .card-chip-header { display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; padding-bottom: .4rem; border-bottom: 3px solid var(--ef-ink); }
 .card-chip-points { color: var(--ef-ink); font-family: "Saira", sans-serif; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
@@ -306,8 +310,9 @@ body.is-game-active .game-right-column .player-overview .resource-strip { margin
 body.is-game-active .game-right-column .player-overview .resource-card { padding: .4rem .35rem; }
 body.is-game-active .game-right-column .player-overview .resource-card strong { font-size: 1.05rem; }
 body.is-game-active .game-right-column .action-panel { min-height: 0; overflow: auto; padding: .7rem; }
-body.is-game-active .game-left-column .hand-panel { min-height: 0; overflow: auto; padding: .7rem; }
+body.is-game-active .game-left-column .hand-panel { min-height: 0; overflow: hidden; padding: .7rem; }
 body.is-game-active .game-left-column .card-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; margin-top: .55rem; }
+body.is-game-active .game-left-column .hand-panel .card-list { min-height: 0; overflow: hidden; }
 body.is-game-active .game-left-column .card-chip { gap: .25rem; min-width: 0; padding: .45rem; font-size: .72rem; }
 body.is-game-active .game-left-column .card-chip-header { padding-bottom: .25rem; }
 body.is-game-active .game-left-column .card-chip-points { font-size: 1.05rem; }

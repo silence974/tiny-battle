@@ -197,6 +197,26 @@ test('active game uses a three-column tactical desk with a live four-seat roster
   assert.match(css, /body\.is-game-active \.game-right-column\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1\.18fr\) minmax\(0,\s*\.82fr\)/s);
 });
 
+test('hand panel paginates complete cards and terminal roster shows ranking instead of active turn', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(html, /id=["']hand-pager["']/);
+  assert.match(html, /id=["']hand-page-prev["']/);
+  assert.match(html, /id=["']hand-page-next["']/);
+  assert.match(html, /id=["']current-player-label["'][^>]*>当前行动/);
+  assert.match(app, /HAND_PAGE_SIZE\s*=\s*4/);
+  assert.match(app, /hand\.slice\(start, start \+ HAND_PAGE_SIZE\)/);
+  assert.match(app, /function renderHandPage/);
+  assert.match(app, /hand-page-prev/);
+  assert.match(app, /hand-page-next/);
+  assert.match(app, /renderPlayerRoster\(snapshot\.players, snapshot\.activeSeat, snapshot\.round, snapshot\.outcome\)/);
+  assert.match(app, /终局结果/);
+  assert.match(app, /const activeClass = ended \? ''/);
+  assert.match(css, /body\.is-game-active \.game-left-column \.hand-panel\s*\{[^}]*overflow:\s*hidden/s);
+  assert.match(css, /\.hand-pager\s*\{[^}]*display:\s*flex/s);
+});
+
 test('player phase guidance is a live vertical step bar with current action hints', () => {
   const html = read('index.html');
   const app = read('app.js');

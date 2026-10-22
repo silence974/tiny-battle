@@ -102,7 +102,14 @@
           </section>
 
           <section class="card hand-panel" id="hand-panel">
-            <div class="panel-heading"><h2>手牌</h2><span id="hand-count" class="count-badge">0</span></div>
+            <div class="panel-heading">
+              <div class="hand-heading"><h2>手牌</h2><span id="hand-count" class="count-badge">0</span></div>
+              <div id="hand-pager" class="hand-pager" hidden aria-label="手牌分页">
+                <button id="hand-page-prev" type="button" aria-label="上一页">←</button>
+                <span id="hand-page-label">1 / 1</span>
+                <button id="hand-page-next" type="button" aria-label="下一页">→</button>
+              </div>
+            </div>
             <div id="hand" class="card-list" aria-label="手牌列表"></div>
           </section>
         </div>
@@ -153,7 +160,7 @@
             <div class="phase-summary">
               <div><span class="phase-label">当前阶段</span><strong id="phase">—</strong></div>
               <div><span class="phase-label">回合 / 序号</span><strong><span id="round">—</span> / <span id="sequence">—</span></strong></div>
-              <div><span class="phase-label">当前行动</span><strong id="current-player">—</strong></div>
+              <div><span id="current-player-label" class="phase-label">当前行动</span><strong id="current-player">—</strong></div>
             </div>
             <p id="phase-guidance" class="phase-guidance">等待主机状态</p>
           </section>
