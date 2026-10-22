@@ -187,26 +187,24 @@
     const title = document.createElement('strong');
     title.textContent = CARD_LABELS[card] || card;
     header.append(title);
-    if (building.points) {
-      const points = document.createElement('strong');
-      points.className = 'card-chip-points';
-      points.textContent = String(building.points);
-      header.append(points);
-    }
+    const points = document.createElement('strong');
+    points.className = 'card-chip-points';
+    points.textContent = String(building.points || 0);
+    header.append(points);
     const production = document.createElement('div');
     production.className = 'card-chip-production';
     if (building.production) {
-      production.append(...Object.entries({ 3: building.production.tier3, 2: building.production.tier2 }).map(([tier, amount], index) => {
+      const maxHeader = document.createElement('div');
+      maxHeader.className = 'production-tier-header';
+      maxHeader.textContent = 'Max';
+      production.append(maxHeader, ...Object.entries({ 3: building.production.tier3, 2: building.production.tier2 }).map(([tier, amount]) => {
         const row = document.createElement('div');
         row.className = 'production-tier';
-        const axis = document.createElement('span');
-        axis.className = 'tier-axis';
-        axis.textContent = index === 0 ? 'Max' : '';
         const capacity = document.createElement('span');
         capacity.textContent = tier;
         const output = document.createElement('strong');
-        output.textContent = `+${amount} ${RESOURCE_LABELS[building.production.resource] || building.production.resource}`;
-        row.append(axis, capacity, output);
+        output.textContent = tileProductionEffect(building.production.resource, amount);
+        row.append(capacity, output);
         return row;
       }));
     } else {
@@ -421,13 +419,62 @@
 
   function renderResourceStrip(player) {
     const resources = player?.resources || {};
-    for (const resource of ['gold', 'wood', 'food']) $(
-      `resource-${resource}`
-    ).textContent = resources[resource] ?? 0;
-    $('resources').textContent = JSON.stringify(resources);
-    $('ap-value').textContent = player?.ap ?? 0;
-    $('units-value').textContent = countForces(player?.reserve);
-    $('score-value').textContent = player?.score ?? 0;
+    for (const resource of ['gold', 'wood', 'food']) {
+      const node = $(`resource-${resource}`);
+      if (node) node.textContent = resources[resource] ?? 0;
+    }
+    const resourceSummary = $('resources');
+    if (resourceSummary) resourceSummary.textContent = JSON.stringify(resources);
+    const ap = $('ap-value');
+    if (ap) ap.textContent = player?.ap ?? 0;
+  }
+
+  function renderGameSessionMeta(player) {
+    const meta = $('game-session-meta');
+    if (!meta) return;
+    $('game-room-code').textContent = state.mode === 'simulation' ? 'LOCAL' : state.room || '—';
+    $('player-identity').textContent = player ? `P${player.seat} ${player.name}` : '玩家 —';
+    meta.hidden = false;
+  }
+
+  function renderPlayerRoster(players = [], activeSeat, round) {
+    const bySeat = new Map(players.map((player) => [player.seat, player]));
+    $('turn-order').textContent = `第 ${round ?? '—'} 轮 · ${activeSeat ? `P${activeSeat} 行动` : '等待行动'}`;
+    const orderedSeats = [1, 2, 3, 4];
+    $('player-roster-list').replaceChildren(...orderedSeats.map((seat, orderIndex) => {
+      const player = bySeat.get(seat);
+      const card = document.createElement('article');
+      card.className = `player-roster-card seat-color-p${seat}${player && player.seat === activeSeat ? ' is-active' : ''}`;
+      card.dataset.seat = String(seat);
+      const heading = document.createElement('div');
+      heading.className = 'player-roster-heading';
+      const order = document.createElement('span');
+      order.className = 'player-order-index';
+      order.textContent = String(orderIndex + 1).padStart(2, '0');
+      const identity = document.createElement('strong');
+      identity.textContent = player ? `P${seat} ${player.name}` : `P${seat}`;
+      const status = document.createElement('span');
+      status.className = 'player-roster-status';
+      status.textContent = player ? (player.seat === activeSeat ? '当前行动' : '已入座') : '等待加入';
+      const identityWrap = document.createElement('span');
+      identityWrap.className = 'player-roster-identity';
+      identityWrap.append(order, identity);
+      heading.append(identityWrap, status);
+      const metrics = document.createElement('div');
+      metrics.className = 'player-roster-metrics';
+      const resources = player ? player.resources || {} : {};
+      for (const [label, resource] of [['G', 'gold'], ['W', 'wood'], ['F', 'food']]) {
+        const value = document.createElement('span');
+        value.textContent = `${label} ${resources[resource] ?? '—'}`;
+        metrics.append(value);
+      }
+      const score = document.createElement('strong');
+      score.className = 'player-roster-score';
+      score.textContent = `${player ? player.score ?? '—' : '—'} 分`;
+      metrics.append(score);
+      card.append(heading, metrics);
+      return card;
+    }));
   }
 
   function actionLabel(action) {
@@ -540,21 +587,28 @@
     if (!snapshot) return;
     state.snapshot = snapshot;
     if (state.mode === 'host') {
+      document.body.classList.remove('is-game-active');
+      $('game-session-meta').hidden = true;
+      $('entry').hidden = false;
       $('game-panel').hidden = true;
       renderHostLog(state.game);
       return;
     }
+    document.body.classList.add('is-game-active');
+    if (!document.body.dataset.mobilePanel) document.body.dataset.mobilePanel = 'board';
+    $('entry').hidden = true;
+    $('room-panel').hidden = true;
     $('game-panel').hidden = false;
     $('phase').textContent = formatPhase(snapshot.phase);
     $('round').textContent = snapshot.round;
     $('sequence').textContent = snapshot.seq;
     const active = snapshot.players.find((player) => player.seat === snapshot.activeSeat);
     $('current-player').textContent = active ? `P${active.seat} ${active.name}` : '—';
+    renderPlayerRoster(snapshot.players, snapshot.activeSeat, snapshot.round);
     renderPhaseGuide(snapshot);
     renderBoard(snapshot);
     const me = snapshot.players.find((player) => player.id === state.enginePlayerId) || snapshot.players[0];
-    $('player-identity').textContent = me ? `P${me.seat} ${me.name}` : '玩家 —';
-    $('player-overview').dataset.seat = me ? String(me.seat) : '';
+    renderGameSessionMeta(me);
     $('hand-panel').dataset.seat = me ? String(me.seat) : '';
     $('action-panel').dataset.seat = me ? String(me.seat) : '';
     renderResourceStrip(me);
@@ -563,6 +617,13 @@
     renderEventLog(snapshot.eventLog || []);
     renderOutcome(snapshot.outcome);
     setConnectionState('connected', state.mode === 'host' ? '主机在线' : state.mode === 'simulation' ? '本地模拟' : '已连接');
+  }
+
+  function setMobilePanel(panel) {
+    document.body.dataset.mobilePanel = panel;
+    document.querySelectorAll('.mobile-game-tabs [data-mobile-target]').forEach((button) => {
+      button.classList.toggle('is-selected', button.dataset.mobileTarget === panel);
+    });
   }
 
   async function sendEnvelope(envelope) { return state.transport.send(envelope); }
@@ -715,8 +776,12 @@
     state.game = null;
     state.started = false;
     state.snapshot = null;
+    $('entry').hidden = false;
     $('room-panel').hidden = true;
     $('game-panel').hidden = true;
+    document.body.classList.remove('is-game-active');
+    $('game-session-meta').hidden = true;
+    document.body.dataset.mobilePanel = 'board';
     closeTileDetail();
     $('debug-link').href = 'debug.html';
   }
@@ -948,6 +1013,9 @@
 
   $('create-room').addEventListener('click', startHost);
   $('quick-simulate').addEventListener('click', startQuickSimulation);
+  document.querySelectorAll('.mobile-game-tabs [data-mobile-target]').forEach((button) => {
+    button.addEventListener('click', () => setMobilePanel(button.dataset.mobileTarget));
+  });
   document.addEventListener('click', (event) => {
     const inspector = $('tile-inspector');
     if (!inspector || inspector.hidden || event.target === inspector) {
@@ -964,5 +1032,6 @@
     if (state.mode === 'player' && state.transport) state.transport.leave();
   });
   showMode(state.mode);
+  setMobilePanel('board');
   if (state.mode === 'player') void startPlayer();
 })();

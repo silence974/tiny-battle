@@ -87,6 +87,8 @@ test('tile inspector keeps the clean overlay content contract', () => {
   const html = read('index.html');
   const app = read('app.js');
   const css = read('styles.css');
+  assert.match(html, /class=["']mobile-game-tabs/);
+  assert.match(html, /data-mobile-target=["']board["']/);
   assert.match(html, /id=["']tile-inspector["'][^>]*class=["'][^"']*tile-inspector/);
   assert.match(html, /id=["']tile-inspector-card["'][^>]*class=["'][^"']*tile-inspector-card/);
   assert.doesNotMatch(html, /id=["']tile-inspector-preview["']/);
@@ -130,6 +132,11 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   const config = read('config-312.js');
   const css = read('styles.css');
   assert.match(app, /function renderCardDetail/);
+  assert.match(app, /points\.textContent = String\(building\.points \|\| 0\)/);
+  assert.match(app, /production-tier-header/);
+  assert.match(app, /tileProductionEffect\(building\.production\.resource, amount\)/);
+  assert.match(app, /row\.append\(capacity, output\)/);
+  assert.doesNotMatch(app.slice(app.indexOf('function renderCardDetail'), app.indexOf('function renderTileVisual')), /force-detail-row|garrison/);
   assert.match(app, /function productionTierForTile/);
   assert.match(app, /function currentProductionForTile/);
   assert.match(app, /function tileProductionEffect/);
@@ -142,7 +149,52 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   assert.match(app, /tile-inspector-forces/);
   assert.match(config, /tier3: 5/);
   assert.match(css, /\.card-chip-header/);
+  assert.match(css, /\.card-chip\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
+  assert.match(css, /\.card-chip-production::before/);
+  assert.match(css, /\.card-chip-points\s*\{[^}]*font-size:\s*1\.5rem/s);
+  assert.match(css, /\.card-chip-cost\s*\{[^}]*font-size:\s*\.9375rem/s);
   assert.match(css, /\.production-tier\.is-active/);
+});
+
+test('active game locks the viewport and keeps secondary panels inside it', () => {
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(app, /document\.body\.classList\.add\(['"]is-game-active['"]\)/);
+  assert.match(app, /document\.body\.classList\.remove\(['"]is-game-active['"]\)/);
+  assert.match(app, /\$\('entry'\)\.hidden = true/);
+  assert.match(app, /\$\('room-panel'\)\.hidden = true/);
+  assert.match(css, /body\.is-game-active\s*\{[^}]*overflow:\s*hidden/s);
+  assert.match(css, /body\.is-game-active \.topbar\s*\{[^}]*min-height:\s*52px/s);
+  assert.match(css, /body\.is-game-active \.app-shell\s*\{[^}]*height:\s*calc\(100dvh - 55px\)/s);
+  assert.match(css, /body\.is-game-active \.game-layout\s*\{[^}]*min-height:\s*0[^}]*overflow:\s*hidden/s);
+  assert.match(css, /body\.is-game-active \.game-columns\s*\{[^}]*height:\s*100%/s);
+  assert.match(css, /body\.is-game-active \.event-panel, body\.is-game-active \.outcome:empty\s*\{[^}]*display:\s*none/s);
+  assert.match(css, /body\.is-game-active \.board-card\s*\{[^}]*overflow:\s*hidden/s);
+  assert.match(css, /body\.is-game-active \.hand-panel, body\.is-game-active \.action-panel\s*\{[^}]*overflow:\s*auto/s);
+});
+
+test('active game uses a three-column tactical desk with a live four-seat roster', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  for (const id of ['game-session-meta', 'game-room-code', 'player-identity', 'ap-value', 'game-left-column', 'player-roster', 'player-roster-list', 'game-center-column', 'game-right-column']) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.doesNotMatch(html, /id=["']player-overview["']/);
+  assert.match(html, /左侧|玩家信息|资源与得分/);
+  assert.match(app, /function renderGameSessionMeta/);
+  assert.match(app, /function renderPlayerRoster/);
+  assert.match(app, /player-order-index/);
+  assert.match(app, /snapshot\.activeSeat/);
+  assert.match(app, /player\.resources/);
+  assert.match(app, /player\.score/);
+  assert.match(app, /player-roster-list/);
+  assert.match(app, /function setMobilePanel/);
+  assert.match(css, /body\.is-game-active \.game-columns\s*\{[^}]*grid-template-columns:\s*minmax\(220px,\s*\.78fr\).*minmax\(440px,\s*1\.5fr\).*minmax\(260px,\s*\.88fr\)/s);
+  assert.match(css, /body\.is-game-active \.game-left-column\s*\{[^}]*grid-template-rows:/s);
+  assert.match(css, /\.player-roster-list\s*\{[^}]*grid-template-rows:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(css, /\.player-roster-card\.is-active\s*\{[^}]*background:\s*var\(--ef-signal\)/s);
+  assert.match(css, /body\.is-game-active \.game-right-column\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1\.18fr\) minmax\(0,\s*\.82fr\)/s);
 });
 
 test('player phase guidance is a live vertical step bar with current action hints', () => {
@@ -172,7 +224,7 @@ test('four seats use distinct colors across map, overview, and cards', () => {
 
 test('home page provides the unified game shell and information hierarchy', () => {
   const html = read('index.html');
-  for (const id of ['phase-rail', 'player-overview', 'resource-strip', 'hand-panel', 'action-panel', 'event-panel']) {
+  for (const id of ['phase-rail', 'game-session-meta', 'resource-strip', 'hand-panel', 'action-panel', 'event-panel']) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
   assert.match(html, /class=["'][^"']*app-shell/);

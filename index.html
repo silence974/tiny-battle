@@ -15,6 +15,13 @@
       <span>Tiny Battle <small>312</small></span>
     </a>
     <div class="topbar-actions">
+      <div id="game-session-meta" class="game-session-meta" hidden aria-label="当前房间与玩家信息">
+        <span>ROOM <strong id="game-room-code">—</strong></span>
+        <span id="player-identity">玩家 —</span>
+        <span class="ap-badge">AP <strong id="ap-value">—</strong></span>
+        <span id="resource-strip" class="sr-only" aria-hidden="true"><span id="resource-gold">—</span><span id="resource-wood">—</span><span id="resource-food">—</span></span>
+        <span id="resources" class="sr-only" aria-hidden="true"></span>
+      </div>
       <span id="connection-chip" class="connection-chip" data-state="idle">尚未连接</span>
       <a id="debug-link" class="text-button" href="debug.html" target="_blank" rel="noopener">四席视角 / 调试</a>
     </div>
@@ -75,38 +82,64 @@
     </section>
 
     <section class="game-layout" id="game-panel" hidden>
+      <nav class="mobile-game-tabs" aria-label="移动端游戏区域">
+        <button type="button" data-mobile-target="roster">玩家</button>
+        <button type="button" data-mobile-target="hand">手牌</button>
+        <button type="button" data-mobile-target="board" class="is-selected">棋盘</button>
+        <button type="button" data-mobile-target="actions">行动</button>
+      </nav>
       <div class="game-columns">
-        <section class="card board-card">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">WORLD MAP</p>
-              <h2>战场</h2>
+        <div id="game-left-column" class="game-left-column">
+          <section class="card player-roster" id="player-roster">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">PLAYER STATUS</p>
+                <h2>玩家信息</h2>
+              </div>
+              <span id="turn-order" class="turn-order">轮次 —</span>
             </div>
-            <div id="board-legend" class="board-legend" aria-label="地图图例">
-              <span><i class="legend-dot legend-p1"></i>P1</span>
-              <span><i class="legend-dot legend-p2"></i>P2</span>
-              <span><i class="legend-dot legend-p3"></i>P3</span>
-              <span><i class="legend-dot legend-p4"></i>P4</span>
-              <span><i class="legend-dot legend-black"></i>黑色势力</span>
-              <span><i class="legend-dot legend-unknown"></i>未知</span>
-            </div>
-          </div>
-          <div id="board" class="board" aria-label="7乘7战场棋盘"></div>
-        </section>
+            <div id="player-roster-list" class="player-roster-list" aria-label="四名玩家资源与得分"></div>
+          </section>
 
-        <section id="tile-inspector" class="tile-inspector" hidden role="dialog" aria-labelledby="tile-inspector-title">
-          <article id="tile-inspector-card" class="tile-inspector-card">
-            <div class="tile-inspector-head">
-              <h2 id="tile-inspector-title">地块详情</h2>
-              <strong id="tile-inspector-points" aria-label="分值"></strong>
-            </div>
-            <div id="tile-inspector-tiers" class="tile-inspector-tiers" aria-label="产能档位"></div>
-            <div id="tile-inspector-cost" class="tile-inspector-cost"></div>
-          </article>
-          <section id="tile-inspector-forces" class="tile-inspector-forces" aria-label="当前驻军"></section>
-        </section>
+          <section class="card hand-panel" id="hand-panel">
+            <div class="panel-heading"><h2>手牌</h2><span id="hand-count" class="count-badge">0</span></div>
+            <div id="hand" class="card-list" aria-label="手牌列表"></div>
+          </section>
+        </div>
 
-        <aside class="player-column">
+        <div id="game-center-column" class="game-center-column">
+          <section class="card board-card">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">WORLD MAP</p>
+                <h2>战场</h2>
+              </div>
+              <div id="board-legend" class="board-legend" aria-label="地图图例">
+                <span><i class="legend-dot legend-p1"></i>P1</span>
+                <span><i class="legend-dot legend-p2"></i>P2</span>
+                <span><i class="legend-dot legend-p3"></i>P3</span>
+                <span><i class="legend-dot legend-p4"></i>P4</span>
+                <span><i class="legend-dot legend-black"></i>黑色势力</span>
+                <span><i class="legend-dot legend-unknown"></i>未知</span>
+              </div>
+            </div>
+            <div id="board" class="board" aria-label="7乘7战场棋盘"></div>
+          </section>
+
+          <section id="tile-inspector" class="tile-inspector" hidden role="dialog" aria-labelledby="tile-inspector-title">
+            <article id="tile-inspector-card" class="tile-inspector-card">
+              <div class="tile-inspector-head">
+                <h2 id="tile-inspector-title">地块详情</h2>
+                <strong id="tile-inspector-points" aria-label="分值"></strong>
+              </div>
+              <div id="tile-inspector-tiers" class="tile-inspector-tiers" aria-label="产能档位"></div>
+              <div id="tile-inspector-cost" class="tile-inspector-cost"></div>
+            </article>
+            <section id="tile-inspector-forces" class="tile-inspector-forces" aria-label="当前驻军"></section>
+          </section>
+        </div>
+
+        <aside id="game-right-column" class="player-column game-right-column">
           <section class="phase-rail card" id="phase-rail" aria-label="对局阶段步骤">
             <div class="phase-steps" aria-label="阶段步骤">
               <div class="phase-step" data-phase="exploration"><span class="phase-step-dot">1</span><span><span class="phase-label">探索</span><strong>发现地图与事件</strong></span></div>
@@ -124,28 +157,6 @@
             </div>
             <p id="phase-guidance" class="phase-guidance">等待主机状态</p>
           </section>
-          <section class="card player-overview" id="player-overview">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">YOUR SEAT</p>
-                <h2 id="player-identity">玩家 —</h2>
-              </div>
-              <span class="ap-badge">AP <strong id="ap-value">—</strong></span>
-            </div>
-            <div id="resource-strip" class="resource-strip" aria-label="资源">
-              <div class="resource-card resource-gold"><span class="resource-icon">G</span><span>金币</span><strong id="resource-gold">—</strong></div>
-              <div class="resource-card resource-wood"><span class="resource-icon">W</span><span>木材</span><strong id="resource-wood">—</strong></div>
-              <div class="resource-card resource-food"><span class="resource-icon">F</span><span>食物</span><strong id="resource-food">—</strong></div>
-            </div>
-            <span id="resources" class="sr-only" aria-hidden="true"></span>
-            <div class="stat-row"><span>兵力</span><strong id="units-value">—</strong><span>分数</span><strong id="score-value">—</strong></div>
-          </section>
-
-          <section class="card hand-panel" id="hand-panel">
-            <div class="panel-heading"><h2>手牌</h2><span id="hand-count" class="count-badge">0</span></div>
-            <div id="hand" class="card-list" aria-label="手牌列表"></div>
-          </section>
-
           <section class="card action-panel" id="action-panel">
             <div class="panel-heading"><div><p class="eyebrow">AVAILABLE NOW</p><h2>可执行行动</h2></div></div>
             <div id="legal-actions" class="actions"></div>
