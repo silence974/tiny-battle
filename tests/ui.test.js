@@ -111,6 +111,7 @@ test('tile inspector keeps the clean overlay content contract', () => {
   assert.match(css, /\.tile-inspector-head strong\s*\{[^}]*font-size:\s*1\.5rem/s);
   assert.match(css, /\.production-tier-header\s*\{[^}]*font-size:\s*1rem/s);
   assert.match(css, /\.tile-inspector-tiers \.production-tier\s*\{[^}]*font-size:\s*1rem/s);
+  assert.match(css, /\.tile-inspector-tiers \.production-tier:last-child\s*\{[^}]*border-bottom:\s*0/s);
   assert.match(css, /\.force-detail-row strong\s*\{[^}]*font-size:\s*1rem/s);
 });
 
