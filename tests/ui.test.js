@@ -132,6 +132,9 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   const config = read('config-312.js');
   const css = read('styles.css');
   assert.match(app, /function renderCardDetail/);
+  assert.match(app, /function cardFunctionalEffect/);
+  assert.match(app, /行动阶段增加可选的招募行动/);
+  assert.match(app, /if \(card === 'monument'\) return '-'/);
   assert.match(app, /points\.textContent = String\(building\.points \|\| 0\)/);
   assert.match(app, /production-tier-header/);
   assert.match(app, /tileProductionEffect\(building\.production\.resource, amount\)/);
@@ -170,7 +173,8 @@ test('active game locks the viewport and keeps secondary panels inside it', () =
   assert.match(css, /body\.is-game-active \.game-columns\s*\{[^}]*height:\s*100%/s);
   assert.match(css, /body\.is-game-active \.event-panel, body\.is-game-active \.outcome:empty\s*\{[^}]*display:\s*none/s);
   assert.match(css, /body\.is-game-active \.board-card\s*\{[^}]*overflow:\s*hidden/s);
-  assert.match(css, /body\.is-game-active \.hand-panel, body\.is-game-active \.action-panel\s*\{[^}]*overflow:\s*auto/s);
+  assert.match(css, /body\.is-game-active \.hand-panel\s*\{[^}]*overflow:\s*hidden/s);
+  assert.match(css, /\.phase-step-actions\s*\{[^}]*grid-column:\s*2/s);
 });
 
 test('active game uses a three-column tactical desk with a live four-seat roster', () => {
@@ -194,7 +198,7 @@ test('active game uses a three-column tactical desk with a live four-seat roster
   assert.match(css, /body\.is-game-active \.game-left-column\s*\{[^}]*grid-template-rows:/s);
   assert.match(css, /\.player-roster-list\s*\{[^}]*grid-template-rows:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(css, /\.player-roster-card\.is-active\s*\{[^}]*background:\s*var\(--ef-signal\)/s);
-  assert.match(css, /body\.is-game-active \.game-right-column\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1\.18fr\) minmax\(0,\s*\.82fr\)/s);
+  assert.match(css, /body\.is-game-active \.game-right-column\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)/s);
 });
 
 test('hand panel paginates complete cards and terminal roster shows ranking instead of active turn', () => {
@@ -215,6 +219,26 @@ test('hand panel paginates complete cards and terminal roster shows ranking inst
   assert.match(app, /const activeClass = ended \? ''/);
   assert.match(css, /body\.is-game-active \.game-left-column \.hand-panel\s*\{[^}]*overflow:\s*hidden/s);
   assert.match(css, /\.hand-pager\s*\{[^}]*display:\s*flex/s);
+});
+
+test('phase rail owns the current actions and map cards use the smallest visual contract', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.doesNotMatch(html, /id=["']action-panel["']/);
+  assert.match(html, /class=["'][^"']*phase-step-actions[^"']*/);
+  assert.match(html, /id=["']legal-actions["'][^>]*class=["'][^"']*phase-step-actions/);
+  assert.match(app, /phase-step-actions/);
+  assert.match(app, /tile-points/);
+  assert.match(app, /tile-garrison/);
+  assert.doesNotMatch(app.slice(app.indexOf('function renderTileVisual'), app.indexOf('function closeTileDetail')), /coord\.textContent|cell\.append\(coord/);
+  assert.match(css, /body\.is-game-active \.game-right-column\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)/s);
+  assert.match(css, /\.phase-step-actions\s*\{/);
+  assert.match(css, /\.phase-step\.is-complete\s*\{[^}]*background:\s*var\(--ef-chip\)/s);
+  assert.match(css, /\.tile-main\s*\{[^}]*font-size:\s*\.7rem/s);
+  assert.match(css, /\.tile-points\s*\{/);
+  assert.match(css, /\.tile-garrison\s*\{/);
+  assert.match(css, /body\.is-game-active \.game-left-column \.card-chip\s*\{[^}]*font-size:\s*\.58rem/s);
 });
 
 test('player phase guidance is a live vertical step bar with current action hints', () => {
@@ -244,7 +268,7 @@ test('four seats use distinct colors across map, overview, and cards', () => {
 
 test('home page provides the unified game shell and information hierarchy', () => {
   const html = read('index.html');
-  for (const id of ['phase-rail', 'game-session-meta', 'resource-strip', 'hand-panel', 'action-panel', 'event-panel']) {
+  for (const id of ['phase-rail', 'game-session-meta', 'resource-strip', 'hand-panel', 'legal-actions', 'event-panel']) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
   assert.match(html, /class=["'][^"']*app-shell/);

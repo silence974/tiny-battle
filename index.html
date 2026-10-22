@@ -149,13 +149,13 @@
         <aside id="game-right-column" class="player-column game-right-column">
           <section class="phase-rail card" id="phase-rail" aria-label="对局阶段步骤">
             <div class="phase-steps" aria-label="阶段步骤">
-              <div class="phase-step" data-phase="exploration"><span class="phase-step-dot">1</span><span><span class="phase-label">探索</span><strong>发现地图与事件</strong></span></div>
-              <div class="phase-step" data-phase="production"><span class="phase-step-dot">2</span><span><span class="phase-label">产出</span><strong>结算资源</strong></span></div>
-              <div class="phase-step" data-phase="purchase"><span class="phase-step-dot">3</span><span><span class="phase-label">购牌</span><strong>明牌 / 盲牌</strong></span></div>
-              <div class="phase-step" data-phase="action"><span class="phase-step-dot">4</span><span><span class="phase-label">行动</span><strong>建设与调度</strong></span></div>
-              <div class="phase-step" data-phase="combat"><span class="phase-step-dot">5</span><span><span class="phase-label">战斗</span><strong>同时解决冲突</strong></span></div>
-              <div class="phase-step" data-phase="black"><span class="phase-step-dot">6</span><span><span class="phase-label">黑方</span><strong>扩张与抽牌</strong></span></div>
-              <div class="phase-step" data-phase="ended"><span class="phase-step-dot">✓</span><span><span class="phase-label">终局</span><strong>共同结果与排名</strong></span></div>
+              <div class="phase-step" data-phase="exploration"><span class="phase-step-dot">1</span><span><span class="phase-label">探索</span><strong>发现地图与事件</strong></span><div class="phase-step-actions" data-phase-actions="exploration"></div></div>
+              <div class="phase-step" data-phase="production"><span class="phase-step-dot">2</span><span><span class="phase-label">产出</span><strong>结算资源</strong></span><div class="phase-step-actions" data-phase-actions="production"></div></div>
+              <div class="phase-step" data-phase="purchase"><span class="phase-step-dot">3</span><span><span class="phase-label">购牌</span><strong>明牌 / 盲牌</strong></span><div class="phase-step-actions" data-phase-actions="purchase"></div></div>
+              <div class="phase-step" data-phase="action"><span class="phase-step-dot">4</span><span><span class="phase-label">行动</span><strong>建设与调度</strong></span><div id="legal-actions" class="phase-step-actions actions" data-phase-actions="action" aria-label="当前阶段可执行行动"></div></div>
+              <div class="phase-step" data-phase="combat"><span class="phase-step-dot">5</span><span><span class="phase-label">战斗</span><strong>同时解决冲突</strong></span><div class="phase-step-actions" data-phase-actions="combat"></div></div>
+              <div class="phase-step" data-phase="black"><span class="phase-step-dot">6</span><span><span class="phase-label">黑方</span><strong>扩张与抽牌</strong></span><div class="phase-step-actions" data-phase-actions="black"></div></div>
+              <div class="phase-step" data-phase="ended"><span class="phase-step-dot">✓</span><span><span class="phase-label">终局</span><strong>共同结果与排名</strong></span><div class="phase-step-actions" data-phase-actions="ended"></div></div>
             </div>
             <div class="phase-summary">
               <div><span class="phase-label">当前阶段</span><strong id="phase">—</strong></div>
@@ -163,10 +163,6 @@
               <div><span id="current-player-label" class="phase-label">当前行动</span><strong id="current-player">—</strong></div>
             </div>
             <p id="phase-guidance" class="phase-guidance">等待主机状态</p>
-          </section>
-          <section class="card action-panel" id="action-panel">
-            <div class="panel-heading"><div><p class="eyebrow">AVAILABLE NOW</p><h2>可执行行动</h2></div></div>
-            <div id="legal-actions" class="actions"></div>
           </section>
         </aside>
       </div>

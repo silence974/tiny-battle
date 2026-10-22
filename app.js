@@ -182,6 +182,12 @@
     return values.length ? values.map(([resource, amount]) => `${RESOURCE_LABELS[resource] || resource} ${amount}`).join('　') : '无';
   }
 
+  function cardFunctionalEffect(card, building = {}) {
+    if (card === 'barracks') return '行动阶段增加可选的招募行动';
+    if (card === 'monument') return '-';
+    return '无可用资源产出';
+  }
+
   function renderCardDetail(item, card) {
     const building = window.CONFIG_312?.buildings?.[card] || {};
     item.className = 'card-chip';
@@ -211,10 +217,17 @@
         return row;
       }));
     } else {
-      const none = document.createElement('span');
-      none.className = 'muted';
-      none.textContent = '无产出';
-      production.append(none);
+      const maxHeader = document.createElement('div');
+      maxHeader.className = 'production-tier-header';
+      maxHeader.textContent = 'Max';
+      const row = document.createElement('div');
+      row.className = 'production-tier';
+      const capacity = document.createElement('span');
+      capacity.textContent = '0';
+      const output = document.createElement('strong');
+      output.textContent = cardFunctionalEffect(card, building);
+      row.append(capacity, output);
+      production.append(maxHeader, row);
     }
     const cost = document.createElement('div');
     cost.className = 'card-chip-cost';
@@ -226,20 +239,34 @@
     const ownerClass = tile.owner ? ` owner-${tile.owner.replace('_', '-')}` : '';
     cell.className = `${cell.className.split(' ').filter((name) => !name.startsWith('owner-') && !['unknown', 'black', 'black_hq', 'hq', 'land'].includes(name)).join(' ')} ${tile.explored ? tile.kind : 'unknown'}${ownerClass}`.trim();
     cell.replaceChildren();
-    const owner = tileOwnerLabel(tile);
     const building = tileBuildingLabel(tile);
     const garrison = tile.garrison ? Object.values(tile.garrison).reduce((sum, count) => sum + (count || 0), 0) : 0;
     const expedition = tile.expeditions?.length ? `远征 ${tile.expeditions.length}` : '';
-    const coord = document.createElement('span');
-    coord.className = 'tile-coord';
-    coord.textContent = tile.coord.join(',');
     const main = document.createElement('span');
     main.className = 'tile-main';
-    main.textContent = tile.explored ? (tile.kind === 'black_hq' ? '黑总部' : owner) : '未知';
+    main.textContent = !tile.explored ? '未知'
+      : building !== '无' ? building
+        : tile.kind === 'black_hq' ? '黑总部'
+          : tile.kind === 'hq' ? '总部'
+            : tile.kind === 'black' ? '黑区' : '空地';
+    const points = document.createElement('span');
+    points.className = 'tile-points';
+    points.textContent = String(tileInspectorPoints(tile));
+    points.hidden = !tile.explored || (building === '无' && !['hq', 'black_hq'].includes(tile.kind));
+    const garrisonBadge = document.createElement('span');
+    garrisonBadge.className = 'tile-garrison';
+    garrisonBadge.hidden = !tile.explored || garrison <= 0;
+    const garrisonIcon = document.createElement('span');
+    garrisonIcon.className = 'tile-garrison-icon';
+    garrisonIcon.setAttribute('aria-hidden', 'true');
+    garrisonIcon.textContent = '♟';
+    const garrisonValue = document.createElement('span');
+    garrisonValue.textContent = String(garrison);
+    garrisonBadge.append(garrisonIcon, garrisonValue);
     const detail = document.createElement('span');
     detail.className = 'tile-detail';
-    detail.textContent = building !== '无' ? building : (garrison ? `驻军 ${garrison}` : expedition);
-    cell.append(coord, main, detail);
+    detail.textContent = expedition;
+    cell.append(main, points, garrisonBadge, detail);
     return { building, garrison, expedition };
   }
 
@@ -534,7 +561,13 @@
   }
 
   function renderActions(actions) {
-    $('legal-actions').replaceChildren(...actions.map((action) => {
+    const actionsPanel = $('legal-actions');
+    const currentPhase = state.snapshot?.phase || document.querySelector('.phase-step.is-current')?.dataset.phase;
+    const host = currentPhase
+      ? document.querySelector(`.phase-step[data-phase="${currentPhase}"] .phase-step-actions`)
+      : null;
+    if (host && actionsPanel && host !== actionsPanel && actionsPanel.parentElement !== host) host.append(actionsPanel);
+    actionsPanel.replaceChildren(...actions.map((action) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'action-button';
@@ -553,7 +586,7 @@
       const empty = document.createElement('p');
       empty.className = 'muted';
       empty.textContent = '当前没有可执行行动';
-      $('legal-actions').append(empty);
+      actionsPanel.append(empty);
     }
   }
 
@@ -639,7 +672,6 @@
     const me = snapshot.players.find((player) => player.id === state.enginePlayerId) || snapshot.players[0];
     renderGameSessionMeta(me);
     $('hand-panel').dataset.seat = me ? String(me.seat) : '';
-    $('action-panel').dataset.seat = me ? String(me.seat) : '';
     renderResourceStrip(me);
     renderHand(me?.hand || []);
     renderActions(snapshot.legalActions || []);
@@ -982,16 +1014,19 @@
       state.game = Engine.createGame({ seed: 312, players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
       $('room-panel').hidden = true;
       const previewMode = new URLSearchParams(location.search).get('preview') === 'ongoing';
-      const { steps, counts } = runQuickSimulation({ maxSteps: previewMode ? 18 : 512 });
+      const { steps, counts } = runQuickSimulation({ maxSteps: previewMode ? 42 : 512 });
       const activity = ['purchase_face_up', 'purchase_blind', 'build', 'dispatch', 'deploy', 'recruit']
         .filter((type) => counts[type])
         .map((type) => `${ACTION_LABELS[type]} ${counts[type]}`)
         .join(' · ');
+      if (previewMode) {
+        state.enginePlayerId = state.game.players.find((player) => player.seat === state.game.activeSeat)?.id || state.enginePlayerId;
+      }
       const status = previewMode
         ? `进行中预览：第 ${state.game.round} 轮 · ${formatPhase(state.game.phase)}`
         : `快速模拟完成：${state.game.result.status === 'win' ? '玩家方胜利' : '玩家方失败'}`;
       setStatus(`${status}（${steps} 步${activity ? `；${activity}` : ''}）`);
-      renderSnapshot(Engine.snapshot(state.game, 'p1'));
+      renderSnapshot(Engine.snapshot(state.game, state.enginePlayerId));
     } catch (error) {
       setStatus('快速模拟无法开始', 'error');
       setError(error);
