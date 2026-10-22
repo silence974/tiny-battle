@@ -130,14 +130,19 @@ test('board tiles are square and expose an accessible snapshot detail inspector'
 test('hand cards and building details expose rule-driven tiers, score, costs, and stationed units', () => {
   const app = read('app.js');
   const config = read('config-312.js');
+  const configData = require(path.join(root, 'config-312.js'));
   const css = read('styles.css');
   assert.match(app, /function renderCardDetail/);
+  assert.match(app, /function cardDescription/);
+  assert.match(app, /function renderCardProduction/);
+  assert.match(app, /function showCardDetail/);
   assert.match(app, /function cardFunctionalEffect/);
-  assert.match(app, /行动阶段增加可选的招募行动/);
-  assert.match(app, /if \(card === 'monument'\) return '-'/);
-  assert.match(app, /points\.textContent = String\(building\.points \|\| 0\)/);
+  assert.match(app, /Object\.entries\(source\.tiers \|\| \{\}\)[\s\S]*?\.sort\(\(\[left\], \[right\]\) => Number\(right\) - Number\(left\)\)/);
+  assert.doesNotMatch(app, /行动阶段增加可选的招募行动/);
+  assert.doesNotMatch(app, /if \(card === 'monument'\)/);
+  assert.match(app, /points\.textContent = String\(description\.points\)/);
   assert.match(app, /production-tier-header/);
-  assert.match(app, /tileProductionEffect\(building\.production\.resource, amount\)/);
+  assert.match(app, /effect\.type === 'resource'/);
   assert.match(app, /row\.append\(capacity, output\)/);
   assert.doesNotMatch(app.slice(app.indexOf('function renderCardDetail'), app.indexOf('function renderTileVisual')), /force-detail-row|garrison/);
   assert.match(app, /function productionTierForTile/);
@@ -150,6 +155,10 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   assert.match(app, /activeTier === tier\.id/);
   assert.match(app, /tile-inspector-tiers/);
   assert.match(app, /tile-inspector-forces/);
+  assert.match(app, /renderCardProduction\(\$\('tile-inspector-tiers'\), description\)/);
+  assert.match(app, /item\.classList\.add\('card-chip-interactive'\)/);
+  assert.match(app, /item\.addEventListener\('click', \(\) => showCardDetail\(card\)\)/);
+  assert.match(app, /event\.target\.closest\('\.card-chip-interactive'\)/);
   assert.match(config, /tier3: 5/);
   assert.match(css, /\.card-chip-header/);
   assert.match(css, /\.card-chip\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
@@ -157,6 +166,22 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   assert.match(css, /\.card-chip-points\s*\{[^}]*font-size:\s*1\.5rem/s);
   assert.match(css, /\.card-chip-cost\s*\{[^}]*font-size:\s*\.9375rem/s);
   assert.match(css, /\.production-tier\.is-active/);
+  assert.match(css, /\.card-chip-interactive:hover, \.card-chip-interactive:focus-visible/);
+  assert.match(css, /body\.is-game-active\[data-mobile-panel="hand"\] \.game-left-column > #hand-panel \{[^}]*grid-template-rows:\s*auto auto[^}]*align-content:\s*start/s);
+  const cards = ['farm', 'goldmine', 'lumber', 'barracks', 'monument'];
+  for (const card of cards) {
+    const description = configData.buildings[card].description;
+    assert.ok(description, `${card} has a unified description`);
+    assert.equal(description.name.length > 0, true);
+    assert.ok(description.build && Object.keys(description.build).length > 0, `${card} has a description cost`);
+    assert.equal(description.points, configData.buildings[card].points);
+    assert.equal(Array.isArray(description.tiers), false, `${card} keeps keyed tiers`);
+    const capacities = Object.keys(description.tiers).map(Number);
+    assert.deepEqual(new Set(capacities), new Set(capacities.slice().sort((left, right) => right - left)), `${card} keeps all keyed tiers`);
+    assert.ok(Object.values(description.tiers).every((effect) => effect.type === 'resource' || effect.type === 'functional'));
+  }
+  assert.equal(configData.buildings.barracks.description.tiers[0].label, '行动阶段增加可选的招募行动');
+  assert.equal(configData.buildings.monument.description.tiers[0].label, '-');
 });
 
 test('active game locks the viewport and keeps secondary panels inside it', () => {

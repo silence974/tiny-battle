@@ -160,7 +160,7 @@
   }
 
   function tileBuildingLabel(tile) {
-    return tile.building ? CARD_LABELS[tile.building] || tile.building : '无';
+    return tile.building ? cardDescription(tile.building).label : '无';
   }
 
   function tileForcesLabel(garrison = {}) {
@@ -182,56 +182,67 @@
     return values.length ? values.map(([resource, amount]) => `${RESOURCE_LABELS[resource] || resource} ${amount}`).join('　') : '无';
   }
 
-  function cardFunctionalEffect(card, building = {}) {
-    if (card === 'barracks') return '行动阶段增加可选的招募行动';
-    if (card === 'monument') return '-';
-    return '无可用资源产出';
+  function cardFunctionalEffect(effect = {}) {
+    return effect.label || '—';
+  }
+
+  function cardDescription(card) {
+    const building = window.CONFIG_312?.buildings?.[card] || {};
+    const source = building.description || {};
+    const tiers = Object.entries(source.tiers || {})
+      .sort(([left], [right]) => Number(right) - Number(left))
+      .map(([capacity, effect]) => {
+        return {
+          capacity,
+          effect: effect.type === 'resource'
+            ? tileProductionEffect(effect.resource, effect.amount)
+            : cardFunctionalEffect(effect),
+        };
+      });
+    return {
+      card,
+      label: source.name || CARD_LABELS[card] || card,
+      points: source.points ?? building.points ?? 0,
+      tiers,
+      cost: source.build || building.build || {},
+    };
+  }
+
+  function renderCardProduction(container, description) {
+    container.replaceChildren();
+    const maxHeader = document.createElement('div');
+    maxHeader.className = 'production-tier-header';
+    maxHeader.textContent = 'Max';
+    container.append(maxHeader, ...description.tiers.map((tier) => {
+      const row = document.createElement('div');
+      row.className = 'production-tier';
+      const capacity = document.createElement('span');
+      capacity.textContent = tier.capacity;
+      const output = document.createElement('strong');
+      output.textContent = tier.effect;
+      row.append(capacity, output);
+      return row;
+    }));
   }
 
   function renderCardDetail(item, card) {
-    const building = window.CONFIG_312?.buildings?.[card] || {};
+    const description = cardDescription(card);
     item.className = 'card-chip';
     const header = document.createElement('div');
     header.className = 'card-chip-header';
     const title = document.createElement('strong');
-    title.textContent = CARD_LABELS[card] || card;
+    title.textContent = description.label;
     header.append(title);
     const points = document.createElement('strong');
     points.className = 'card-chip-points';
-    points.textContent = String(building.points || 0);
+    points.textContent = String(description.points);
     header.append(points);
     const production = document.createElement('div');
     production.className = 'card-chip-production';
-    if (building.production) {
-      const maxHeader = document.createElement('div');
-      maxHeader.className = 'production-tier-header';
-      maxHeader.textContent = 'Max';
-      production.append(maxHeader, ...Object.entries({ 3: building.production.tier3, 2: building.production.tier2 }).map(([tier, amount]) => {
-        const row = document.createElement('div');
-        row.className = 'production-tier';
-        const capacity = document.createElement('span');
-        capacity.textContent = tier;
-        const output = document.createElement('strong');
-        output.textContent = tileProductionEffect(building.production.resource, amount);
-        row.append(capacity, output);
-        return row;
-      }));
-    } else {
-      const maxHeader = document.createElement('div');
-      maxHeader.className = 'production-tier-header';
-      maxHeader.textContent = 'Max';
-      const row = document.createElement('div');
-      row.className = 'production-tier';
-      const capacity = document.createElement('span');
-      capacity.textContent = '0';
-      const output = document.createElement('strong');
-      output.textContent = cardFunctionalEffect(card, building);
-      row.append(capacity, output);
-      production.append(maxHeader, row);
-    }
+    renderCardProduction(production, description);
     const cost = document.createElement('div');
     cost.className = 'card-chip-cost';
-    cost.textContent = `建造需求　${resourceCostLabel(building.build)}`;
+    cost.textContent = `建造需求　${resourceCostLabel(description.cost)}`;
     item.append(header, production, cost);
   }
 
@@ -275,6 +286,10 @@
     if (!inspector) return;
     inspector.hidden = true;
     delete inspector.dataset.coord;
+    delete inspector.dataset.card;
+    delete inspector.dataset.kind;
+    const forcesPanel = $('tile-inspector-forces');
+    if (forcesPanel) forcesPanel.hidden = false;
   }
 
   function productionTierForTile(tile) {
@@ -295,20 +310,23 @@
       return { capacity, activeTier: active >= 0 ? `hq-${active}` : 0, tiers };
     }
     if (!building?.production) return { capacity: 0, activeTier: 0, tiers: [] };
+    const description = cardDescription(tile.building);
+    const effectFor = (capacity) => description.tiers.find((tier) => tier.capacity === String(capacity))?.effect
+      || tileProductionEffect(building.production.resource, building.production[`tier${capacity}`]);
     const tiers = [
       {
         id: 3,
         axis: '3',
         label: '',
         production: { gold: building.production.resource === 'gold' ? building.production.tier3 : 0, wood: building.production.resource === 'wood' ? building.production.tier3 : 0, food: building.production.resource === 'food' ? building.production.tier3 : 0 },
-        output: tileProductionEffect(building.production.resource, building.production.tier3),
+        output: effectFor(3),
       },
       {
         id: 2,
         axis: '2',
         label: '',
         production: { gold: building.production.resource === 'gold' ? building.production.tier2 : 0, wood: building.production.resource === 'wood' ? building.production.tier2 : 0, food: building.production.resource === 'food' ? building.production.tier2 : 0 },
-        output: tileProductionEffect(building.production.resource, building.production.tier2),
+        output: effectFor(2),
       },
     ];
     return { capacity, activeTier: capacity >= 3 ? 3 : capacity >= 2 ? 2 : 0, tiers };
@@ -320,14 +338,14 @@
   }
 
   function tileInspectorTitle(tile) {
-    if (tile.building) return tileBuildingLabel(tile);
+    if (tile.building) return cardDescription(tile.building).label;
     if (tile.kind === 'black_hq') return '黑色总部';
     if (tile.kind === 'hq') return '总部';
     return tile.explored ? tileOwnerLabel(tile) : '未知地块';
   }
 
   function tileInspectorPoints(tile) {
-    if (tile.building) return window.CONFIG_312?.buildings?.[tile.building]?.points || 0;
+    if (tile.building) return cardDescription(tile.building).points;
     if (tile.kind === 'black_hq') return window.CONFIG_312?.black?.hqPoints || 0;
     return 0;
   }
@@ -341,6 +359,8 @@
       return;
     }
     inspector.dataset.coord = coord;
+    inspector.dataset.kind = 'tile';
+    delete inspector.dataset.card;
     inspector.setAttribute('aria-label', `${tileInspectorTitle(tile)} ${coord}`);
     $('tile-inspector-title').textContent = tileInspectorTitle(tile);
     const points = $('tile-inspector-points');
@@ -374,9 +394,10 @@
       tierPanel.append(none);
     }
     const cost = $('tile-inspector-cost');
-    const building = window.CONFIG_312?.buildings?.[tile.building];
-    cost.textContent = `建造要求　${resourceCostLabel(building?.build)}`;
+    const description = tile.building ? cardDescription(tile.building) : null;
+    cost.textContent = `建造要求　${resourceCostLabel(description?.cost)}`;
     const forcesPanel = $('tile-inspector-forces');
+    forcesPanel.hidden = false;
     forcesPanel.replaceChildren();
     if (tile.explored && tile.garrison) {
       const forceRows = Object.entries(tile.garrison).map(([unit, count]) => {
@@ -397,6 +418,28 @@
       none.textContent = tile.explored ? '无驻军' : '未知';
       forcesPanel.append(none);
     }
+    inspector.hidden = false;
+  }
+
+  function showCardDetail(card) {
+    const inspector = $('tile-inspector');
+    if (!inspector) return;
+    if (!inspector.hidden && inspector.dataset.kind === 'card' && inspector.dataset.card === card) {
+      closeTileDetail();
+      return;
+    }
+    const description = cardDescription(card);
+    inspector.dataset.kind = 'card';
+    inspector.dataset.card = card;
+    delete inspector.dataset.coord;
+    inspector.setAttribute('aria-label', `${description.label} 卡牌详情`);
+    $('tile-inspector-title').textContent = description.label;
+    const points = $('tile-inspector-points');
+    points.textContent = String(description.points);
+    points.hidden = false;
+    renderCardProduction($('tile-inspector-tiers'), description);
+    $('tile-inspector-cost').textContent = `建造要求　${resourceCostLabel(description.cost)}`;
+    $('tile-inspector-forces').hidden = true;
     inspector.hidden = false;
   }
 
@@ -543,7 +586,19 @@
     $('hand-page-next').disabled = state.handPage >= pageCount - 1;
     $('hand').replaceChildren(...(visibleHand.length ? visibleHand : []).map((card) => {
       const item = document.createElement('div');
+      const description = cardDescription(card);
       renderCardDetail(item, card);
+      item.classList.add('card-chip-interactive');
+      item.tabIndex = 0;
+      item.setAttribute('role', 'button');
+      item.setAttribute('aria-haspopup', 'dialog');
+      item.setAttribute('aria-label', `${description.label} 卡牌详情`);
+      item.addEventListener('click', () => showCardDetail(card));
+      item.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        showCardDetail(card);
+      });
       return item;
     }));
     if (!visibleHand.length) {
@@ -1098,7 +1153,7 @@
       if (inspector && !inspector.hidden && event.target === inspector) closeTileDetail();
       return;
     }
-    if (inspector.contains(event.target) || event.target.closest('.tile')) return;
+    if (inspector.contains(event.target) || event.target.closest('.tile') || event.target.closest('.card-chip-interactive')) return;
     closeTileDetail();
   });
   document.addEventListener('keydown', (event) => {

@@ -256,6 +256,8 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .hand-pager button { min-width: 1.7rem; padding: .18rem .35rem; color: var(--ef-ink); border: 1px solid var(--ef-rule); background: var(--ef-chip); font-family: inherit; font-size: .8rem; line-height: 1; }
 .hand-pager button:disabled { cursor: not-allowed; opacity: .35; }
 .card-chip { display: grid; aspect-ratio: 1 / 1; gap: .55rem; min-height: 0; overflow: hidden; padding: .7rem; color: var(--ef-ink); border: 1px solid var(--ef-ink); background: var(--ef-panel); font-size: 1rem; font-weight: 740; }
+.card-chip-interactive { cursor: pointer; }
+.card-chip-interactive:hover, .card-chip-interactive:focus-visible { border-color: var(--ef-ink); background: var(--ef-signal); }
 .card-chip-header { display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; padding-bottom: .4rem; border-bottom: 3px solid var(--ef-ink); }
 .card-chip-points { color: var(--ef-ink); font-family: "Saira", sans-serif; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
 .card-chip-production { position: relative; display: grid; gap: 0; min-height: 0; padding: .1rem 0; border: 0; }
@@ -431,6 +433,8 @@ body.is-game-active .app-shell { height: calc(100dvh - 55px); padding-block: .5r
   body.is-game-active .game-left-column .card-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   body.is-game-active[data-mobile-panel="roster"] .game-left-column > #player-roster,
   body.is-game-active[data-mobile-panel="hand"] .game-left-column > #hand-panel { display: grid; }
+  body.is-game-active[data-mobile-panel="hand"] .game-left-column > #hand-panel { grid-template-rows: auto auto; align-content: start; }
+  body.is-game-active[data-mobile-panel="hand"] .game-left-column > #hand-panel #hand { align-content: start; }
   body.is-game-active .game-right-column { grid-template-rows: minmax(0, 1fr); gap: .45rem; overflow: auto; }
   body.is-game-active .game-right-column > #phase-rail { display: none; }
   body.is-game-active[data-mobile-panel="actions"] .game-right-column > #phase-rail { display: grid; }
