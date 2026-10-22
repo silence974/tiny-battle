@@ -587,6 +587,7 @@
   }
 
   async function sendRoster(target = null) {
+    renderRoster([...state.roomState.players.values()].map(({ id, name, seat }) => ({ id, name, seat })));
     await sendEnvelope(Room.makeEnvelope({
       room: state.room,
       type: 'roster',

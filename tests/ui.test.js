@@ -70,6 +70,7 @@ test('host view is lobby-and-log only and auto-advances non-decision phases', ()
   assert.match(app, /function renderHostLog/);
   assert.match(app, /function settleHostAutomatic/);
   assert.match(app, /settleHostAutomatic\(\)/);
+  assert.match(app, /renderRoster\(\[\.\.\.state\.roomState\.players\.values\(\)\]/);
   assert.match(app, /state\.mode === 'host'/);
 });
 
