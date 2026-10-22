@@ -167,6 +167,30 @@ test('unified stylesheet defines the light board layout and responsive panels', 
   assert.match(css, /\.phase-rail/);
 });
 
+test('approved tactical-console visual language is present without changing gameplay hooks', () => {
+  const html = read('index.html');
+  const css = read('styles.css');
+  assert.match(html, /data-ef-accent=["']yellow["']/);
+  assert.match(html, /data-ef-paper=["']neutral["']/);
+  assert.match(html, /data-ef-cut=["']tight["']/);
+  assert.match(html, /data-ef-ground=["']grid["']/);
+  assert.match(html, /data-ef-density=["']compact["']/);
+  assert.match(html, /data-ef-motion=["']calm["']/);
+  assert.match(html, /class=["'][^"']*signal-strip/);
+  assert.match(css, /--ef-signal:\s*#fffa00/i);
+  assert.match(css, /\.card\s*\{[^}]*border-radius:\s*0[^}]*box-shadow:\s*none/s);
+  assert.match(css, /\.primary-button\s*\{[^}]*clip-path:\s*polygon/s);
+  assert.match(css, /\.topbar\s*\{[^}]*background:\s*var\(--ef-command\)/s);
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+});
+
+test('tile detail is a non-disruptive overlay instead of a grid participant', () => {
+  const css = read('styles.css');
+  assert.match(css, /\.tile-inspector\s*\{[^}]*position:\s*fixed[^}]*z-index:/s);
+  assert.match(css, /\.tile-inspector\s*\{[^}]*inset:/s);
+  assert.match(css, /\.tile-inspector-layout\s*\{[^}]*max-height:/s);
+});
+
 test('host debug page contains four private perspective panels and seat-link controls', () => {
   const html = read('debug.html');
   assert.match(html, /host-only|host/i);
