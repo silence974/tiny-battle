@@ -124,6 +124,104 @@ test('anonymous session JWT is forwarded to Supabase Realtime auth', async () =>
   await transport.leave();
 });
 
+test('browser-created transports reuse a persisted anonymous session across room tabs', async () => {
+  const previousSupabase = globalThis.supabase;
+  const previousConfig = globalThis.SUPABASE_CONFIG;
+  let receivedOptions;
+  const channel = {
+    on() { return this; },
+    subscribe(callback) { callback('SUBSCRIBED'); return this; },
+    async send() { return 'ok'; },
+  };
+  globalThis.SUPABASE_CONFIG = { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' };
+  globalThis.supabase = {
+    createClient(_url, _key, options) {
+      receivedOptions = options;
+      return {
+        auth: { signInAnonymously: async () => ({ error: null }) },
+        channel() { return channel; },
+        async removeChannel() {},
+      };
+    },
+  };
+  try {
+    const transport = Room.createRoomTransport();
+    await transport.join({ room: 'ROOM-A', clientId: 'host-a', hostId: 'host-a', role: 'host' });
+    assert.deepEqual(receivedOptions, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+    await transport.leave();
+  } finally {
+    globalThis.supabase = previousSupabase;
+    globalThis.SUPABASE_CONFIG = previousConfig;
+  }
+});
+
+test('existing anonymous session skips another rate-limited sign-in', async () => {
+  let signIns = 0;
+  let realtimeToken = null;
+  const channel = {
+    on() { return this; },
+    subscribe(callback) { callback('SUBSCRIBED'); return this; },
+    async send() { return 'ok'; },
+  };
+  const client = {
+    auth: {
+      async getSession() { return { data: { session: { access_token: 'existing-jwt' } }, error: null }; },
+      async signInAnonymously() { signIns += 1; return { error: null }; },
+    },
+    realtime: { setAuth(token) { realtimeToken = token; } },
+    channel() { return channel; },
+    async removeChannel() {},
+  };
+  const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
+  await transport.join({ room: 'ROOM-A', clientId: 'host-a', hostId: 'host-a', role: 'host' });
+  assert.equal(signIns, 0);
+  assert.equal(realtimeToken, 'existing-jwt');
+  await transport.leave();
+});
+
+test('persisted access token avoids a second sign-in while another tab hydrates auth', async () => {
+  const previousSupabase = globalThis.supabase;
+  const previousConfig = globalThis.SUPABASE_CONFIG;
+  const previousStorage = globalThis.localStorage;
+  let signIns = 0;
+  let realtimeToken = null;
+  const channel = {
+    on() { return this; },
+    subscribe(callback) { callback('SUBSCRIBED'); return this; },
+    async send() { return 'ok'; },
+  };
+  globalThis.SUPABASE_CONFIG = { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' };
+  globalThis.localStorage = {
+    getItem(key) {
+      return key === 'sb-example-auth-token' ? JSON.stringify({ access_token: 'persisted-jwt', expires_at: Math.floor(Date.now() / 1000) + 300 }) : null;
+    },
+  };
+  globalThis.supabase = {
+    createClient() {
+      return {
+        auth: {
+          async getSession() { return { data: { session: null }, error: null }; },
+          async signInAnonymously() { signIns += 1; return { error: null }; },
+        },
+        realtime: { setAuth(token) { realtimeToken = token; } },
+        channel() { return channel; },
+        async removeChannel() {},
+      };
+    },
+  };
+  try {
+    const transport = Room.createRoomTransport();
+    await transport.join({ room: 'ROOM-A', clientId: 'host-a', hostId: 'host-a', role: 'host' });
+    assert.equal(signIns, 0);
+    assert.equal(realtimeToken, 'persisted-jwt');
+    await transport.leave();
+  } finally {
+    globalThis.supabase = previousSupabase;
+    globalThis.SUPABASE_CONFIG = previousConfig;
+    globalThis.localStorage = previousStorage;
+  }
+});
+
 test('Realtime subscription errors preserve the provider diagnostic', async () => {
   const channel = {
     on() { return this; },
@@ -136,6 +234,87 @@ test('Realtime subscription errors preserve the provider diagnostic', async () =
   };
   const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
   await assert.rejects(() => transport.join({ room: 'ABCD2345', clientId: 'host-1', hostId: 'host-1', role: 'host' }), /MissingPartition: test partition/);
+});
+
+test('transport send rejects a non-ok Realtime result instead of silently waiting', async () => {
+  const channel = {
+    on() { return this; },
+    subscribe(callback) { callback('SUBSCRIBED'); return this; },
+    async send() { return { status: 'error', error: 'transport failure' }; },
+  };
+  const client = {
+    auth: { signInAnonymously: async () => ({ error: null }) },
+    channel() { return channel; },
+    async removeChannel() {},
+  };
+  const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
+  await transport.join({ room: 'ABCD2345', clientId: 'host-1', hostId: 'host-1', role: 'host' });
+  await assert.rejects(() => transport.send(Room.makeEnvelope({ room: 'ABCD2345', type: 'roster', from: 'host-1' })), /transport failure/);
+  await transport.leave();
+});
+
+test('sendCommand clears its waiter when Realtime rejects the send', async () => {
+  const channel = {
+    on() { return this; },
+    subscribe(callback) { callback('SUBSCRIBED'); return this; },
+    async send() { return { status: 'error', error: { message: 'transport failure' } }; },
+  };
+  const client = {
+    auth: { signInAnonymously: async () => ({ error: null }) },
+    channel() { return channel; },
+    async removeChannel() {},
+  };
+  const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
+  await transport.join({ room: 'ABCD2345', clientId: 'client-a', hostId: 'client-a', role: 'host' });
+  const started = Date.now();
+  await assert.rejects(() => transport.sendCommand({ seq: 0, action: { type: 'pass' } }), /transport failure/);
+  assert.ok(Date.now() - started < 1_000, 'send failure should not wait for command timeout');
+  await transport.leave();
+});
+
+test('requestSnapshot also reports a Realtime send failure immediately', async () => {
+  const channel = {
+    on() { return this; },
+    subscribe(callback) { callback('SUBSCRIBED'); return this; },
+    async send() { return { status: 'error', error: { message: 'transport failure' } }; },
+  };
+  const client = {
+    auth: { signInAnonymously: async () => ({ error: null }) },
+    channel() { return channel; },
+    async removeChannel() {},
+  };
+  const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
+  await transport.join({ room: 'ABCD2345', clientId: 'client-a', hostId: 'host-a', role: 'host' });
+  const started = Date.now();
+  await assert.rejects(() => transport.requestSnapshot(), /transport failure/);
+  assert.ok(Date.now() - started < 1_000, 'resync failure should not wait for timeout');
+  await transport.leave();
+});
+
+test('room transport retries a transient channel failure before giving up', async () => {
+  let subscriptions = 0;
+  const removed = [];
+  const client = {
+    auth: { signInAnonymously: async () => ({ error: null }) },
+    channel() {
+      subscriptions += 1;
+      const attempt = subscriptions;
+      return {
+        on() { return this; },
+        subscribe(callback) {
+          if (attempt === 1) callback('CHANNEL_ERROR', { message: 'transport failure' });
+          else callback('SUBSCRIBED');
+          return this;
+        },
+      };
+    },
+    async removeChannel(channel) { removed.push(channel); },
+  };
+  const transport = Room.createRoomTransport({ client, config: { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' } });
+  await transport.join({ room: 'ROOM-A', clientId: 'host-a', hostId: 'host-a', role: 'host' });
+  assert.equal(subscriptions, 2);
+  assert.equal(removed.length, 1);
+  await transport.leave();
 });
 
 test('player join waits for the host seat confirmation snapshot', async () => {

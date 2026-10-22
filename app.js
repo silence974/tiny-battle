@@ -872,45 +872,65 @@
 
   async function sendEnvelope(envelope) { return state.transport.send(envelope); }
 
+  function reportTransportFailure(label, error) {
+    const detail = error?.message || String(error || '未知传输错误');
+    setError(new Error(`${label}失败：${detail}`));
+  }
+
   async function broadcastState(target = null, requestId = undefined) {
     if (!state.started) return;
     const targets = target ? [target] : [...state.roomState.players.keys()];
-    for (const playerId of targets) {
+    const failures = [];
+    await Promise.all(targets.map(async (playerId) => {
       const player = state.roomState.players.get(playerId);
-      await sendEnvelope(Room.makeEnvelope({
-        room: state.room,
-        type: 'state',
-        from: state.hostId,
-        to: playerId,
-        requestId: target && playerId === target ? requestId : undefined,
-        seq: state.game.seq,
-        payload: { snapshot: Engine.snapshot(state.game, player?.engineId || playerId) },
-      }));
-    }
+      try {
+        await sendEnvelope(Room.makeEnvelope({
+          room: state.room,
+          type: 'state',
+          from: state.hostId,
+          to: playerId,
+          requestId: target && playerId === target ? requestId : undefined,
+          seq: state.game.seq,
+          payload: { snapshot: Engine.snapshot(state.game, player?.engineId || playerId) },
+        }));
+      } catch (error) {
+        failures.push({ playerId, error });
+        reportTransportFailure(`P${player?.seat || playerId} 状态同步`, error);
+      }
+    }));
     publishDebug();
+    return failures;
   }
 
   async function sendRoster(target = null) {
     renderRoster([...state.roomState.players.values()].map(({ id, name, seat }) => ({ id, name, seat })));
     renderHostLog(state.game);
-    await sendEnvelope(Room.makeEnvelope({
-      room: state.room,
-      type: 'roster',
-      from: state.hostId,
-      to: target,
-      payload: { players: [...state.roomState.players.values()].map(({ id, name, seat }) => ({ id, name, seat })) },
-    }));
+    try {
+      await sendEnvelope(Room.makeEnvelope({
+        room: state.room,
+        type: 'roster',
+        from: state.hostId,
+        to: target,
+        payload: { players: [...state.roomState.players.values()].map(({ id, name, seat }) => ({ id, name, seat })) },
+      }));
+    } catch (error) {
+      reportTransportFailure('席位列表同步', error);
+    }
   }
 
   async function sendWaiting(target, requestId) {
-    await sendEnvelope(Room.makeEnvelope({
-      room: state.room,
-      type: 'waiting',
-      from: state.hostId,
-      to: target,
-      requestId,
-      payload: { joined: state.roomState.players.size, required: Room.PLAYER_COUNT, started: false },
-    }));
+    try {
+      await sendEnvelope(Room.makeEnvelope({
+        room: state.room,
+        type: 'waiting',
+        from: state.hostId,
+        to: target,
+        requestId,
+        payload: { joined: state.roomState.players.size, required: Room.PLAYER_COUNT, started: false },
+      }));
+    } catch (error) {
+      reportTransportFailure('等待状态同步', error);
+    }
   }
 
   function settleAutomatic() {

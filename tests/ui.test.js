@@ -215,6 +215,12 @@ test('active game locks the viewport and keeps secondary panels inside it', () =
   assert.match(css, /@media \(min-width: 1600px\)[\s\S]*?body\.is-game-active \.game-columns\s*\{[^}]*minmax\(560px, 1\.8fr\)/s);
 });
 
+test('host state broadcasts do not let one failed seat block the other seats', () => {
+  const app = read('app.js');
+  assert.match(app, /await Promise\.all\(targets\.map\(async \(playerId\) =>/);
+  assert.match(app, /reportTransportFailure\(`P\$\{player\?\.seat \|\| playerId\} 状态同步`/);
+});
+
 test('active game uses a three-column tactical desk with a live four-seat roster', () => {
   const html = read('index.html');
   const app = read('app.js');

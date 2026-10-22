@@ -21,6 +21,21 @@
     return { ok: true };
   }
 
+  function persistedAccessToken(config) {
+    try {
+      const projectRef = new URL(String(config.url)).hostname.split('.')[0];
+      const raw = globalScope?.localStorage?.getItem(`sb-${projectRef}-auth-token`);
+      if (!raw) return null;
+      const stored = JSON.parse(raw);
+      const session = stored?.session || stored;
+      const expiresAt = Number(session?.expires_at || 0);
+      if (expiresAt && expiresAt * 1000 <= Date.now() + 30_000) return null;
+      return String(session?.access_token || '').trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
   function roomTopic(room) {
     return `game312:${String(room || '').trim()}`;
   }
@@ -136,6 +151,8 @@
   }
 
   function createRoomTransport(options = {}) {
+    const MAX_SUBSCRIBE_ATTEMPTS = 3;
+    const RETRY_DELAY_MS = 150;
     let channel = null;
     let client = options.client || null;
     let context = null;
@@ -148,12 +165,36 @@
       const config = options.config || globalScope?.SUPABASE_CONFIG;
       const validation = validateConfig(config);
       if (!validation.ok) throw new Error(validation.message);
-      client = client || globalScope?.supabase?.createClient(config.url, config.publishableKey);
+      // Keep one browser-scoped anonymous session for all room tabs. Calling
+      // anonymous sign-in for every seat/room quickly hits Supabase Auth's
+      // rate limit and leaves the later Realtime channels unable to connect.
+      client = client || globalScope?.supabase?.createClient(config.url, config.publishableKey, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      });
       if (!client) throw new Error('缺少 Supabase 浏览器客户端');
+      let session = null;
+      let sessionError = null;
+      if (client.auth?.getSession) {
+        const existing = await client.auth.getSession();
+        sessionError = existing.error || null;
+        session = existing.data?.session || null;
+      }
+      const storedAccessToken = session?.access_token || persistedAccessToken(config);
+      if (!session && storedAccessToken && client.realtime?.setAuth) {
+        // A concurrent tab can observe the persisted token before GoTrue has
+        // finished hydrating its own session object. Reuse that valid token
+        // rather than issuing another anonymous sign-in request.
+        client.realtime.setAuth(storedAccessToken);
+        return client;
+      }
+      if (sessionError) throw new Error(`Supabase 会话读取失败: ${sessionError.message}`);
       if (client.auth?.signInAnonymously) {
-        const result = await client.auth.signInAnonymously();
-        if (result.error) throw new Error(`Supabase 匿名登录失败: ${result.error.message}`);
-        const accessToken = result.data?.session?.access_token;
+        if (!session) {
+          const result = await client.auth.signInAnonymously();
+          if (result.error) throw new Error(`Supabase 匿名登录失败: ${result.error.message}`);
+          session = result.data?.session || null;
+        }
+        const accessToken = session?.access_token;
         if (accessToken && client.realtime?.setAuth) client.realtime.setAuth(accessToken);
       }
       return client;
@@ -185,17 +226,37 @@
     async function joinRoom(joinOptions) {
       const supabase = await ensureClient();
       context = { ...joinOptions, room: String(joinOptions.room), localId: String(joinOptions.clientId), lastSeq: 0 };
-      channel = supabase.channel(roomTopic(context.room), { config: { private: true } });
-      channel.on('broadcast', { event: 'game312' }, ({ payload }) => handle(payload));
-      await new Promise((resolve, reject) => {
-        channel.subscribe((status, error) => {
-          if (status === 'SUBSCRIBED') resolve();
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            const detail = error?.message || error?.code || (error ? JSON.stringify(error) : '');
-            reject(new Error(`Supabase channel ${status}${detail ? `: ${detail}` : ''}`));
+      let lastSubscribeError;
+      for (let attempt = 1; attempt <= MAX_SUBSCRIBE_ATTEMPTS; attempt += 1) {
+        channel = supabase.channel(roomTopic(context.room), { config: { private: true } });
+        channel.on('broadcast', { event: 'game312' }, ({ payload }) => handle(payload));
+        try {
+          await new Promise((resolve, reject) => {
+            channel.subscribe((status, error) => {
+              if (status === 'SUBSCRIBED') resolve();
+              if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                const detail = error?.message || error?.code || (error ? JSON.stringify(error) : '');
+                reject(new Error(`Supabase channel ${status}${detail ? `: ${detail}` : ''}`));
+              }
+            });
+          });
+          lastSubscribeError = null;
+          break;
+        } catch (error) {
+          lastSubscribeError = error;
+          if (client?.removeChannel) {
+            try { await client.removeChannel(channel); } catch { /* retry still gets a fresh channel */ }
           }
-        });
-      });
+          channel = null;
+          if (attempt < MAX_SUBSCRIBE_ATTEMPTS) {
+            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+          }
+        }
+      }
+      if (lastSubscribeError) {
+        context = null;
+        throw lastSubscribeError;
+      }
       if (context.role !== 'host') {
         const requestId = token();
         const ready = new Promise((resolve, reject) => {
@@ -221,7 +282,13 @@
 
     async function send(envelope) {
       if (!channel) throw new Error('room is not connected');
-      return channel.send({ type: 'broadcast', event: 'game312', payload: envelope });
+      const result = await channel.send({ type: 'broadcast', event: 'game312', payload: envelope });
+      const status = typeof result === 'string' ? result : result?.status;
+      if (status && String(status).toLowerCase() !== 'ok') {
+        const detail = result?.error?.message || result?.error || result?.message || result?.reason || '';
+        throw new Error(`Supabase channel send ${status}${detail ? `: ${detail}` : ''}`);
+      }
+      return result;
     }
 
     async function requestSnapshot() {
@@ -233,7 +300,17 @@
         }, 10_000);
         waiters.set(requestId, { resolve: (value) => { clearTimeout(timer); resolve(value); }, reject: (error) => { clearTimeout(timer); reject(error); } });
       });
-      await send(makeEnvelope({ room: context.room, type: 'resync', from: context.clientId, to: context.hostId || null, requestId, seq: context.lastSeq, payload: {} }));
+      pending.catch(() => {});
+      try {
+        await send(makeEnvelope({ room: context.room, type: 'resync', from: context.clientId, to: context.hostId || null, requestId, seq: context.lastSeq, payload: {} }));
+      } catch (error) {
+        const waiter = waiters.get(requestId);
+        if (waiter) {
+          waiters.delete(requestId);
+          waiter.reject(error);
+        }
+        throw error;
+      }
       return pending;
     }
 
@@ -263,7 +340,19 @@
         }, 10_000);
         waiters.set(requestId, { resolve: (value) => { clearTimeout(timer); resolve(value); }, reject: (error) => { clearTimeout(timer); reject(error); } });
       });
-      await send(makeEnvelope({ room: context.room, type: 'command', from: context.clientId, to: context.hostId || null, seq: command.seq, requestId, payload: command }));
+      // A provider-side send failure must reject immediately instead of
+      // leaving the caller waiting for the ten-second command timeout.
+      pending.catch(() => {});
+      try {
+        await send(makeEnvelope({ room: context.room, type: 'command', from: context.clientId, to: context.hostId || null, seq: command.seq, requestId, payload: command }));
+      } catch (error) {
+        const waiter = waiters.get(requestId);
+        if (waiter) {
+          waiters.delete(requestId);
+          waiter.reject(error);
+        }
+        throw error;
+      }
       return pending;
     }
 
