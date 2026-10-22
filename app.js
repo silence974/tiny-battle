@@ -189,7 +189,13 @@
   function cardDescription(card) {
     const building = window.CONFIG_312?.buildings?.[card] || {};
     const source = building.description || {};
-    const tiers = Object.entries(source.tiers || {})
+    const tierEffects = building.production
+      ? {
+        3: { type: 'resource', resource: building.production.resource, amount: building.production.tier3 },
+        2: { type: 'resource', resource: building.production.resource, amount: building.production.tier2 },
+      }
+      : { 0: { type: 'functional', label: source.functional?.label || '—' } };
+    const tiers = Object.entries(tierEffects)
       .sort(([left], [right]) => Number(right) - Number(left))
       .map(([capacity, effect]) => {
         return {
@@ -202,9 +208,9 @@
     return {
       card,
       label: source.name || CARD_LABELS[card] || card,
-      points: source.points ?? building.points ?? 0,
+      points: building.points || 0,
       tiers,
-      cost: source.build || building.build || {},
+      cost: building.build || {},
     };
   }
 

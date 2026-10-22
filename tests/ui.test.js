@@ -137,7 +137,7 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   assert.match(app, /function renderCardProduction/);
   assert.match(app, /function showCardDetail/);
   assert.match(app, /function cardFunctionalEffect/);
-  assert.match(app, /Object\.entries\(source\.tiers \|\| \{\}\)[\s\S]*?\.sort\(\(\[left\], \[right\]\) => Number\(right\) - Number\(left\)\)/);
+  assert.match(app, /Object\.entries\(tierEffects\)[\s\S]*?\.sort\(\(\[left\], \[right\]\) => Number\(right\) - Number\(left\)\)/);
   assert.doesNotMatch(app, /行动阶段增加可选的招募行动/);
   assert.doesNotMatch(app, /if \(card === 'monument'\)/);
   assert.match(app, /points\.textContent = String\(description\.points\)/);
@@ -173,15 +173,16 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
     const description = configData.buildings[card].description;
     assert.ok(description, `${card} has a unified description`);
     assert.equal(description.name.length > 0, true);
-    assert.ok(description.build && Object.keys(description.build).length > 0, `${card} has a description cost`);
-    assert.equal(description.points, configData.buildings[card].points);
-    assert.equal(Array.isArray(description.tiers), false, `${card} keeps keyed tiers`);
-    const capacities = Object.keys(description.tiers).map(Number);
-    assert.deepEqual(new Set(capacities), new Set(capacities.slice().sort((left, right) => right - left)), `${card} keeps all keyed tiers`);
-    assert.ok(Object.values(description.tiers).every((effect) => effect.type === 'resource' || effect.type === 'functional'));
+    assert.equal('build' in description, false, `${card} does not duplicate build cost`);
+    assert.equal('points' in description, false, `${card} does not duplicate score`);
+    if (configData.buildings[card].production) {
+      assert.equal('functional' in description, false, `${card} derives resource tiers from rules`);
+    } else {
+      assert.ok(description.functional?.label, `${card} has functional copy`);
+    }
   }
-  assert.equal(configData.buildings.barracks.description.tiers[0].label, '行动阶段增加可选的招募行动');
-  assert.equal(configData.buildings.monument.description.tiers[0].label, '-');
+  assert.equal(configData.buildings.barracks.description.functional.label, '行动阶段增加可选的招募行动');
+  assert.equal(configData.buildings.monument.description.functional.label, '-');
 });
 
 test('active game locks the viewport and keeps secondary panels inside it', () => {
