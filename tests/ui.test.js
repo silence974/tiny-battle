@@ -84,9 +84,23 @@ test('host keeps the game in the lobby until all four seats are ready', () => {
 });
 
 test('tile inspector keeps the clean overlay content contract', () => {
+  const html = read('index.html');
   const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(html, /id=["']tile-inspector["'][^>]*class=["'][^"']*tile-inspector/);
+  assert.match(html, /id=["']tile-inspector-card["'][^>]*class=["'][^"']*tile-inspector-card/);
+  assert.doesNotMatch(html, /id=["']tile-inspector-preview["']/);
+  assert.doesNotMatch(html, /class=["'][^"']*tile-inspector-layout/);
+  assert.doesNotMatch(html, /id=["']tile-inspector-copy["']/);
+  assert.doesNotMatch(html, /id=["']tile-inspector["'][^>]*class=["'][^"']*card/);
   assert.doesNotMatch(app, /summary\.className = 'detail-list'/);
-  assert.match(app, /copy\.replaceChildren\(tierPanel, forcesPanel\)/);
+  assert.match(app, /function tileInspectorTitle/);
+  assert.match(app, /function tileInspectorPoints/);
+  assert.match(app, /tile-inspector-tiers/);
+  assert.match(app, /tile-inspector-cost/);
+  assert.match(app, /forcesPanel\.replaceChildren\(\)/);
+  assert.doesNotMatch(app, /copy\.replaceChildren\(tierPanel, forcesPanel\)/);
+  assert.match(css, /\.tile-inspector-card\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
 });
 
 test('board tiles are square and expose an accessible snapshot detail inspector', () => {
@@ -94,12 +108,12 @@ test('board tiles are square and expose an accessible snapshot detail inspector'
   const app = read('app.js');
   const css = read('styles.css');
   assert.match(html, /id=["']tile-inspector["']/);
-  assert.match(html, /id=["']tile-inspector-preview["']/);
+  assert.match(html, /id=["']tile-inspector-card["']/);
   assert.match(app, /function showTileDetail/);
   assert.match(app, /role["'], ["']button/);
   assert.match(app, /tile-inspector/);
   assert.match(css, /\.tile\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
-  assert.match(css, /\.tile-inspector-preview\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
+  assert.match(css, /\.tile-inspector-card\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
 });
 
 test('hand cards and building details expose rule-driven tiers, score, costs, and stationed units', () => {
@@ -109,10 +123,10 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   assert.match(app, /function renderCardDetail/);
   assert.match(app, /function productionTierForTile/);
   assert.match(app, /function currentProductionForTile/);
-  assert.match(app, /tileProductionLabel\(currentProduction\)/);
   assert.doesNotMatch(app, /const production = tile\.production/);
   assert.doesNotMatch(app, /tileProductionLabel\(production\)/);
-  assert.match(app, /tile-inspector-tier/);
+  assert.match(app, /activeTier === tier\.id/);
+  assert.match(app, /tile-inspector-tiers/);
   assert.match(app, /tile-inspector-forces/);
   assert.match(config, /tier3: 5/);
   assert.match(css, /\.card-chip-header/);
@@ -203,7 +217,8 @@ test('tile detail is a non-disruptive overlay instead of a grid participant', ()
   const css = read('styles.css');
   assert.match(css, /\.tile-inspector\s*\{[^}]*position:\s*fixed[^}]*z-index:/s);
   assert.match(css, /\.tile-inspector\s*\{[^}]*inset:/s);
-  assert.match(css, /\.tile-inspector-layout\s*\{[^}]*max-height:/s);
+  assert.match(css, /\.tile-inspector-card\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
+  assert.doesNotMatch(css, /\.tile-inspector-layout\s*\{/);
 });
 
 test('host debug page contains four private perspective panels and seat-link controls', () => {

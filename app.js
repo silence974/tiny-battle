@@ -286,6 +286,19 @@
     return tierInfo.tiers.find((tier) => tier.id === tierInfo.activeTier)?.production || { gold: 0, wood: 0, food: 0 };
   }
 
+  function tileInspectorTitle(tile) {
+    if (tile.building) return tileBuildingLabel(tile);
+    if (tile.kind === 'black_hq') return '黑色总部';
+    if (tile.kind === 'hq') return '总部';
+    return tile.explored ? tileOwnerLabel(tile) : '未知地块';
+  }
+
+  function tileInspectorPoints(tile) {
+    if (tile.building) return window.CONFIG_312?.buildings?.[tile.building]?.points || 0;
+    if (tile.kind === 'black_hq') return window.CONFIG_312?.black?.hqPoints || 0;
+    return 0;
+  }
+
   function showTileDetail(tile) {
     const inspector = $('tile-inspector');
     if (!inspector) return;
@@ -295,21 +308,16 @@
       return;
     }
     inspector.dataset.coord = coord;
-    $('tile-inspector-title').textContent = `地块 ${coord}`;
-    const preview = $('tile-inspector-preview');
-    preview.className = 'tile tile-inspector-preview';
-    preview.setAttribute('aria-label', `地块 ${coord} 预览`);
-    renderTileVisual(preview, tile);
+    inspector.setAttribute('aria-label', `${tileInspectorTitle(tile)} ${coord}`);
+    $('tile-inspector-title').textContent = tileInspectorTitle(tile);
+    const points = $('tile-inspector-points');
+    const score = tileInspectorPoints(tile);
+    points.textContent = score ? String(score) : '';
+    points.hidden = !score;
     const tierInfo = productionTierForTile(tile);
-    const { capacity, activeTier, tiers } = tierInfo;
-    const currentProduction = currentProductionForTile(tile, tierInfo);
-    const copy = $('tile-inspector-copy');
-    const tierPanel = document.createElement('section');
-    tierPanel.id = 'tile-inspector-tier';
-    tierPanel.className = 'tile-inspector-section';
-    const tierTitle = document.createElement('h3');
-    tierTitle.textContent = '产能挡位';
-    tierPanel.append(tierTitle);
+    const { activeTier, tiers } = tierInfo;
+    const tierPanel = $('tile-inspector-tiers');
+    tierPanel.replaceChildren();
     if (tiers.length && tile.explored) {
       tierPanel.append(...tiers.map((tier) => {
         const row = document.createElement('div');
@@ -325,38 +333,36 @@
         row.append(axis, capacityLabel, output);
         return row;
       }));
-      const current = document.createElement('p');
-      current.className = 'tile-inspector-current';
-      current.textContent = activeTier ? `当前生效：${tiers.find((tier) => tier.id === activeTier)?.label || '已匹配'}（${tileProductionLabel(currentProduction)}）` : `当前生效：无产出（容量 ${capacity}）`;
-      tierPanel.append(current);
     } else {
       const none = document.createElement('p');
       none.className = 'muted';
       none.textContent = '该建筑没有产能挡位';
       tierPanel.append(none);
     }
-    const forcesPanel = document.createElement('section');
-    forcesPanel.id = 'tile-inspector-forces';
-    forcesPanel.className = 'tile-inspector-section';
-    const forcesTitle = document.createElement('h3');
-    forcesTitle.textContent = '当前驻军';
-    forcesPanel.append(forcesTitle);
+    const cost = $('tile-inspector-cost');
+    const building = window.CONFIG_312?.buildings?.[tile.building];
+    cost.textContent = `建造要求　${resourceCostLabel(building?.build)}`;
+    const forcesPanel = $('tile-inspector-forces');
+    forcesPanel.replaceChildren();
     if (tile.explored && tile.garrison) {
       const forceRows = Object.entries(tile.garrison).map(([unit, count]) => {
         const row = document.createElement('div');
         row.className = 'force-detail-row';
         const unitConfig = window.CONFIG_312.units[unit] || {};
-        row.textContent = `${UNIT_LABELS[unit] || unit} · 战力 ${unitConfig.power ?? '—'} · 产能 ${unitConfig.capacity ?? '—'} · 数量 ${count}`;
+        const description = document.createElement('span');
+        description.textContent = `${UNIT_LABELS[unit] || unit}｜战力 ${unitConfig.power ?? '—'}｜产能 ${unitConfig.capacity ?? '—'}`;
+        const quantity = document.createElement('strong');
+        quantity.textContent = String(count);
+        row.append(description, quantity);
         return row;
       });
       forcesPanel.append(...forceRows);
     } else {
       const none = document.createElement('p');
       none.className = 'muted';
-      none.textContent = '未知';
+      none.textContent = tile.explored ? '无驻军' : '未知';
       forcesPanel.append(none);
     }
-    copy.replaceChildren(tierPanel, forcesPanel);
     inspector.hidden = false;
   }
 

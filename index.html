@@ -94,18 +94,17 @@
           <div id="board" class="board" aria-label="7乘7战场棋盘"></div>
         </section>
 
-        <section id="tile-inspector" class="card tile-inspector" hidden role="dialog" aria-label="地块详情">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">TILE DETAIL</p>
+        <section id="tile-inspector" class="tile-inspector" hidden role="dialog" aria-labelledby="tile-inspector-title">
+          <article id="tile-inspector-card" class="tile-inspector-card">
+            <button id="close-tile-inspector" class="tile-inspector-close" type="button" aria-label="关闭地块详情">×</button>
+            <div class="tile-inspector-head">
               <h2 id="tile-inspector-title">地块详情</h2>
+              <strong id="tile-inspector-points" aria-label="分值"></strong>
             </div>
-            <button id="close-tile-inspector" type="button" aria-label="关闭地块详情">关闭</button>
-          </div>
-          <div class="tile-inspector-layout">
-            <div id="tile-inspector-preview" class="tile tile-inspector-preview" aria-label="地块预览"></div>
-            <div id="tile-inspector-copy" class="tile-inspector-copy"></div>
-          </div>
+            <div id="tile-inspector-tiers" class="tile-inspector-tiers" aria-label="产能档位"></div>
+            <div id="tile-inspector-cost" class="tile-inspector-cost"></div>
+          </article>
+          <section id="tile-inspector-forces" class="tile-inspector-forces" aria-label="当前驻军"></section>
         </section>
 
         <aside class="player-column">
