@@ -97,12 +97,19 @@ test('tile inspector keeps the clean overlay content contract', () => {
   assert.doesNotMatch(app, /summary\.className = 'detail-list'/);
   assert.match(app, /function tileInspectorTitle/);
   assert.match(app, /function tileInspectorPoints/);
+  assert.match(app, /points\.textContent = String\(score\)/);
   assert.match(app, /production-tier-header/);
   assert.match(app, /tile-inspector-tiers/);
   assert.match(app, /tile-inspector-cost/);
   assert.match(app, /forcesPanel\.replaceChildren\(\)/);
   assert.doesNotMatch(app, /copy\.replaceChildren\(tierPanel, forcesPanel\)/);
   assert.match(css, /\.tile-inspector-card\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
+  assert.match(css, /\.tile-inspector-tiers::before\s*\{[^}]*bottom:\s*0[^}]*left:\s*3rem/s);
+  assert.match(css, /\.tile-inspector-head h2\s*\{[^}]*font-size:\s*2rem/s);
+  assert.match(css, /\.tile-inspector-head strong\s*\{[^}]*font-size:\s*1\.5rem/s);
+  assert.match(css, /\.production-tier-header\s*\{[^}]*font-size:\s*1rem/s);
+  assert.match(css, /\.tile-inspector-tiers \.production-tier\s*\{[^}]*font-size:\s*1rem/s);
+  assert.match(css, /\.force-detail-row strong\s*\{[^}]*font-size:\s*1rem/s);
 });
 
 test('board tiles are square and expose an accessible snapshot detail inspector', () => {

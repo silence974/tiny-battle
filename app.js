@@ -317,8 +317,8 @@
     $('tile-inspector-title').textContent = tileInspectorTitle(tile);
     const points = $('tile-inspector-points');
     const score = tileInspectorPoints(tile);
-    points.textContent = score ? String(score) : '';
-    points.hidden = !score;
+    points.textContent = String(score);
+    points.hidden = false;
     const tierInfo = productionTierForTile(tile);
     const { activeTier, tiers } = tierInfo;
     const tierPanel = $('tile-inspector-tiers');
