@@ -34,6 +34,8 @@ test('seat links are opened as automatic join links and browser boot handles the
   assert.match(html, /id=["']player-panel["']/);
   assert.match(html, /自动加入|自动入座/);
   assert.match(app, /function readSeatLink\(url = location\.href\)/);
+  assert.match(app, /function hasSeatLinkMarker\(url = location\.href\)/);
+  assert.match(app, /mode: hasSeatInvite\(\) \|\| hasSeatLinkMarker\(\) \? 'player' : 'host'/);
   assert.match(app, /startPlayer\(\)/);
   assert.match(app, /state\.mode === 'player'/);
   assert.doesNotMatch(app, /\$\('player-link'\)/);
@@ -126,6 +128,7 @@ test('board tiles are square and expose an accessible snapshot detail inspector'
   assert.match(app, /tile-inspector/);
   assert.match(css, /\.tile\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
   assert.match(css, /\.tile-inspector-card\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
+  assert.doesNotMatch(css, /\.tile(?::[a-z]+)?::after/);
 });
 
 test('hand cards and building details expose rule-driven tiers, score, costs, and stationed units', () => {
@@ -202,7 +205,10 @@ test('active game locks the viewport and keeps secondary panels inside it', () =
   assert.match(css, /body\.is-game-active \.event-panel, body\.is-game-active \.outcome:empty\s*\{[^}]*display:\s*none/s);
   assert.match(css, /body\.is-game-active \.board-card\s*\{[^}]*overflow:\s*hidden/s);
   assert.match(css, /body\.is-game-active \.hand-panel\s*\{[^}]*overflow:\s*hidden/s);
+  assert.match(css, /body\.is-game-active \.game-center-column \.board\s*\{[^}]*52vw[^}]*840px/s);
   assert.match(css, /\.phase-step-actions\s*\{[^}]*grid-column:\s*2/s);
+  assert.match(css, /@media \(min-width: 1600px\)[\s\S]*?\.app-shell\s*\{[^}]*width:\s*min\(1840px/s);
+  assert.match(css, /@media \(min-width: 1600px\)[\s\S]*?body\.is-game-active \.game-columns\s*\{[^}]*minmax\(560px, 1\.8fr\)/s);
 });
 
 test('active game uses a three-column tactical desk with a live four-seat roster', () => {
@@ -224,6 +230,7 @@ test('active game uses a three-column tactical desk with a live four-seat roster
   assert.match(app, /function setMobilePanel/);
   assert.match(css, /body\.is-game-active \.game-columns\s*\{[^}]*grid-template-columns:\s*minmax\(220px,\s*\.78fr\).*minmax\(440px,\s*1\.5fr\).*minmax\(260px,\s*\.88fr\)/s);
   assert.match(css, /body\.is-game-active \.game-left-column\s*\{[^}]*grid-template-rows:/s);
+  assert.match(css, /\.player-roster\s*\{[^}]*grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)/s);
   assert.match(css, /\.player-roster-list\s*\{[^}]*grid-template-rows:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(css, /\.player-roster-card\.is-active\s*\{[^}]*background:\s*var\(--ef-signal\)/s);
   assert.match(css, /body\.is-game-active \.game-right-column\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)/s);

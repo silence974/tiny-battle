@@ -34,6 +34,7 @@ test('creates stable fixed-seat compact links without putting tokens in query re
   assert.match(first[0].url, /#r=ABCD2345&s=1&t=tok-a$/);
   assert.equal(new URL(first[0].url).search, '');
   assert.deepEqual(Room.parseSeatFragment(new URL(first[0].url).hash), { room: 'ABCD2345', seat: 1, token: 'tok-a' });
+  assert.deepEqual(Room.parseSeatFragment(new URL(first[3].url).hash), { room: 'ABCD2345', seat: 4, token: 'tok-d' });
 });
 
 test('fixed tokens claim one seat, allow same-identity reconnect, and reject conflicts', () => {

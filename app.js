@@ -26,8 +26,15 @@
     }
   }
 
+  function hasSeatLinkMarker(url = location.href) {
+    const parsed = new URL(url);
+    if (['r', 's', 't'].some((key) => parsed.searchParams.has(key))) return true;
+    return /(?:^|&)r=|(?:^|&)s=|(?:^|&)t=/.test(String(parsed.hash || '').replace(/^#/, ''));
+  }
+
   const state = {
-    mode: hasSeatInvite() ? 'player' : 'host',
+    // A damaged/copied seat link must fail in player mode, never silently create a second host.
+    mode: hasSeatInvite() || hasSeatLinkMarker() ? 'player' : 'host',
     hostId: null,
     clientId: null,
     enginePlayerId: null,

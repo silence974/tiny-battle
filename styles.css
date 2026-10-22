@@ -167,7 +167,6 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .tile[role="button"] { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%); cursor: pointer; }
 .tile[role="button"]:hover { border-color: var(--ef-ink); background: var(--ef-signal); }
 .tile[role="button"]:focus-visible { outline: 2px solid var(--ef-ink); outline-offset: 2px; }
-.tile::after { position: absolute; right: .42rem; bottom: .4rem; width: 7px; height: 7px; background: transparent; content: ""; }
 .tile.unknown { border-style: dashed; color: #777a76; background: transparent; }
 .tile.black, .tile.black_hq { border-color: var(--ef-ink); color: #fff; background: var(--color-black); }
 .tile.hq { border-color: var(--ef-ink); background: var(--color-player); }
@@ -178,8 +177,6 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .tile.owner-p3 { --seat-accent: var(--seat-p3); --seat-tint: var(--seat-p3-tint); --seat-ink: var(--seat-p3-ink); }
 .tile.owner-p4 { --seat-accent: var(--seat-p4); --seat-tint: var(--seat-p4-tint); --seat-ink: var(--seat-p4-ink); }
 .tile.owner-p1::before, .tile.owner-p2::before, .tile.owner-p3::before, .tile.owner-p4::before { position: absolute; inset: 0 0 auto; height: 5px; background: var(--seat-accent); content: ""; }
-.tile.owner-p1::after, .tile.owner-p2::after, .tile.owner-p3::after, .tile.owner-p4::after { background: var(--seat-accent); }
-.tile.owner-black::after { background: var(--ef-signal); }
 .tile-coord { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 .tile-main { max-width: 82%; color: inherit; font-size: .7rem; font-weight: 850; line-height: 1.1; }
 .tile-points { position: absolute; top: .3rem; right: .36rem; color: inherit; font-family: "Saira", monospace; font-size: .65rem; font-weight: 850; font-variant-numeric: tabular-nums; }
@@ -281,7 +278,7 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 
 .mobile-game-tabs { display: none; }
 .game-left-column, .game-center-column, .game-right-column { min-width: 0; }
-.player-roster { display: grid; min-height: 0; padding: .7rem; }
+.player-roster { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: .7rem; }
 .player-roster .panel-heading { align-items: flex-start; }
 .turn-order { padding: .3rem .45rem; color: var(--ef-ink); background: var(--ef-signal); font-family: "Saira", sans-serif; font-size: .68rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .player-roster-list { display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); gap: .35rem; min-height: 0; margin-top: .55rem; overflow: hidden; }
@@ -333,11 +330,16 @@ body.is-game-active .game-left-column .production-tier-header { padding-inline: 
 body.is-game-active .game-left-column .card-chip-production .production-tier { grid-template-columns: 1.65rem minmax(0, 1fr); min-height: 18px; padding-inline: .1rem; font-size: .56rem; line-height: 1.08; }
 body.is-game-active .game-left-column .card-chip-cost { padding-top: .2rem; font-size: .54rem; line-height: 1.18; }
 body.is-game-active .game-center-column .board-card { width: 100%; height: 100%; }
-body.is-game-active .game-center-column .board { width: min(calc(100% - 1rem), calc(100dvh - 150px)); max-width: calc(100% - 1rem); min-width: 0; justify-self: center; margin-block: .65rem; }
+body.is-game-active .game-center-column .board { width: min(calc(100% - 1rem), calc(100dvh - 150px), 52vw, 840px); max-width: 840px; min-width: 0; justify-self: center; margin-block: .65rem; }
 
 @media (max-width: 1180px) {
   body.is-game-active .game-columns { grid-template-columns: minmax(190px, .72fr) minmax(360px, 1.35fr) minmax(230px, .83fr); gap: .6rem; }
   body.is-game-active .game-left-column .card-list { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 1600px) {
+  .app-shell { width: min(1840px, calc(100% - 2rem)); }
+  body.is-game-active .game-columns { grid-template-columns: minmax(240px, .72fr) minmax(560px, 1.8fr) minmax(260px, .75fr); }
 }
 
 body.is-game-active .topbar { min-height: 52px; padding-block: .35rem; }
