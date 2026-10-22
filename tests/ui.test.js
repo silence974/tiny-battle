@@ -92,10 +92,12 @@ test('tile inspector keeps the clean overlay content contract', () => {
   assert.doesNotMatch(html, /id=["']tile-inspector-preview["']/);
   assert.doesNotMatch(html, /class=["'][^"']*tile-inspector-layout/);
   assert.doesNotMatch(html, /id=["']tile-inspector-copy["']/);
+  assert.doesNotMatch(html, /id=["']close-tile-inspector["']/);
   assert.doesNotMatch(html, /id=["']tile-inspector["'][^>]*class=["'][^"']*card/);
   assert.doesNotMatch(app, /summary\.className = 'detail-list'/);
   assert.match(app, /function tileInspectorTitle/);
   assert.match(app, /function tileInspectorPoints/);
+  assert.match(app, /production-tier-header/);
   assert.match(app, /tile-inspector-tiers/);
   assert.match(app, /tile-inspector-cost/);
   assert.match(app, /forcesPanel\.replaceChildren\(\)/);
@@ -123,6 +125,9 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   assert.match(app, /function renderCardDetail/);
   assert.match(app, /function productionTierForTile/);
   assert.match(app, /function currentProductionForTile/);
+  assert.match(app, /function tileProductionEffect/);
+  assert.match(app, /axis: String\(tier\.minCapacity\)/);
+  assert.doesNotMatch(app, /容量 \$\{/);
   assert.doesNotMatch(app, /const production = tile\.production/);
   assert.doesNotMatch(app, /tileProductionLabel\(production\)/);
   assert.match(app, /activeTier === tier\.id/);

@@ -147,6 +147,7 @@
   }
 
   const RESOURCE_LABELS = { gold: '金币', wood: '木材', food: '食物' };
+  const RESOURCE_SHORT_LABELS = { gold: '金', wood: '木', food: '食' };
   const UNIT_LABELS = { militia: '民兵', guard: '卫兵' };
 
   function tileOwnerLabel(tile) {
@@ -166,7 +167,11 @@
 
   function tileProductionLabel(production = {}) {
     const output = Object.entries(production).filter(([, amount]) => amount);
-    return output.length ? output.map(([resource, amount]) => `${RESOURCE_LABELS[resource] || resource} ${amount}`).join(' / ') : '无产出';
+    return output.length ? output.map(([resource, amount]) => `+${amount}${RESOURCE_SHORT_LABELS[resource] || resource}`).join(' / ') : '无产出';
+  }
+
+  function tileProductionEffect(resource, amount) {
+    return `+${amount}${RESOURCE_SHORT_LABELS[resource] || resource}`;
   }
 
   function resourceCostLabel(cost = {}) {
@@ -253,8 +258,8 @@
     if (tile.kind === 'hq' && tile.owner) {
       const tiers = (config.hqProductionTiers || []).map((tier, index) => ({
         id: `hq-${index}`,
-        axis: index === 0 ? '0–5' : '6+',
-        label: `容量 ${tier.minCapacity}–${tier.maxCapacity >= 999 ? '以上' : tier.maxCapacity}`,
+        axis: String(tier.minCapacity),
+        label: '',
         production: { gold: tier.gold || 0, wood: tier.wood || 0, food: tier.food || 0 },
         output: tileProductionLabel({ gold: tier.gold || 0, wood: tier.wood || 0, food: tier.food || 0 }),
       }));
@@ -265,17 +270,17 @@
     const tiers = [
       {
         id: 3,
-        axis: 'Max',
-        label: '容量 3',
+        axis: '3',
+        label: '',
         production: { gold: building.production.resource === 'gold' ? building.production.tier3 : 0, wood: building.production.resource === 'wood' ? building.production.tier3 : 0, food: building.production.resource === 'food' ? building.production.tier3 : 0 },
-        output: `+${building.production.tier3} ${RESOURCE_LABELS[building.production.resource] || building.production.resource}`,
+        output: tileProductionEffect(building.production.resource, building.production.tier3),
       },
       {
         id: 2,
-        axis: '',
-        label: '容量 2',
+        axis: '2',
+        label: '',
         production: { gold: building.production.resource === 'gold' ? building.production.tier2 : 0, wood: building.production.resource === 'wood' ? building.production.tier2 : 0, food: building.production.resource === 'food' ? building.production.tier2 : 0 },
-        output: `+${building.production.tier2} ${RESOURCE_LABELS[building.production.resource] || building.production.resource}`,
+        output: tileProductionEffect(building.production.resource, building.production.tier2),
       },
     ];
     return { capacity, activeTier: capacity >= 3 ? 3 : capacity >= 2 ? 2 : 0, tiers };
@@ -319,18 +324,19 @@
     const tierPanel = $('tile-inspector-tiers');
     tierPanel.replaceChildren();
     if (tiers.length && tile.explored) {
-      tierPanel.append(...tiers.map((tier) => {
+      const maxHeader = document.createElement('div');
+      maxHeader.className = 'production-tier-header';
+      maxHeader.textContent = 'Max';
+      tierPanel.append(maxHeader, ...[...tiers].sort((left, right) => Number(right.axis) - Number(left.axis)).map((tier) => {
         const row = document.createElement('div');
         row.className = `production-tier${activeTier === tier.id ? ' is-active' : ''}`;
         row.dataset.tier = String(tier.id);
         const axis = document.createElement('span');
         axis.className = 'tier-axis';
-        axis.textContent = tier.axis;
-        const capacityLabel = document.createElement('span');
-        capacityLabel.textContent = tier.label;
         const output = document.createElement('strong');
         output.textContent = tier.output;
-        row.append(axis, capacityLabel, output);
+        axis.textContent = tier.axis;
+        row.append(axis, output);
         return row;
       }));
     } else {
@@ -942,10 +948,13 @@
 
   $('create-room').addEventListener('click', startHost);
   $('quick-simulate').addEventListener('click', startQuickSimulation);
-  $('close-tile-inspector').addEventListener('click', closeTileDetail);
   document.addEventListener('click', (event) => {
     const inspector = $('tile-inspector');
-    if (!inspector || inspector.hidden || inspector.contains(event.target) || event.target.closest('.tile')) return;
+    if (!inspector || inspector.hidden || event.target === inspector) {
+      if (inspector && !inspector.hidden && event.target === inspector) closeTileDetail();
+      return;
+    }
+    if (inspector.contains(event.target) || event.target.closest('.tile')) return;
     closeTileDetail();
   });
   document.addEventListener('keydown', (event) => {
