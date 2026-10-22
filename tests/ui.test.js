@@ -37,6 +37,9 @@ test('seat links are opened as automatic join links and browser boot handles the
   assert.match(app, /function hasSeatLinkMarker\(url = location\.href\)/);
   assert.match(app, /mode: hasSeatInvite\(\) \|\| hasSeatLinkMarker\(\) \? 'player' : 'host'/);
   assert.match(app, /startPlayer\(\)/);
+  assert.match(app, /await state\.transport\.join\([\s\S]*?if \(!state\.snapshot\)/s);
+  assert.match(app, /if \(!state\.snapshot\) \{[\s\S]*?等待主机状态/s);
+  assert.match(app, /addEventListener\('hashchange',[\s\S]*?startPlayer\(\)/s);
   assert.match(app, /state\.mode === 'player'/);
   assert.doesNotMatch(app, /\$\('player-link'\)/);
 });

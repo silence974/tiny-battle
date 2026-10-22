@@ -979,12 +979,21 @@
     setError(null);
     setStatus('正在读取座位链接…', 'connecting');
     try {
+      showMode('player');
+      state.snapshot = null;
+      state.game = null;
+      state.started = false;
+      $('game-panel').hidden = true;
+      $('game-session-meta').hidden = true;
+      document.body.classList.remove('is-game-active');
       await closeTransport();
       const seat = readSeatLink();
       $('player-seat').textContent = `正在自动加入 P${seat.seat}（${seat.name}）…`;
       state.room = seat.room;
       state.enginePlayerId = Room.enginePlayerId(seat.seat);
       state.clientId = `${seat.room}-seat-${seat.seat}-${persistentSeatIdentity(seat.room, seat.seat)}`;
+      $('room-panel').hidden = false;
+      $('room-code').textContent = state.room;
       state.transport = Room.createRoomTransport({
         config,
         handlers: {
@@ -994,10 +1003,12 @@
         },
       });
       await state.transport.join({ room: seat.room, seat: seat.seat, token: seat.token, clientId: state.clientId, name: seat.name });
-      $('room-panel').hidden = false;
-      $('room-code').textContent = state.room;
       $('player-seat').textContent = `已自动加入 P${seat.seat}（${seat.name}）`;
-      setStatus(`已连接到 P${seat.seat}，等待主机状态`);
+      if (!state.snapshot) {
+        setStatus(`已连接到 P${seat.seat}，等待主机状态`);
+      } else {
+        setStatus(`已连接到 P${seat.seat}`);
+      }
     } catch (error) {
       await closeTransport();
       clearRoomState();
@@ -1174,6 +1185,9 @@
   });
   window.addEventListener('pagehide', () => {
     if (state.mode === 'player' && state.transport) state.transport.leave();
+  });
+  window.addEventListener('hashchange', () => {
+    if (hasSeatInvite() || hasSeatLinkMarker()) void startPlayer();
   });
   showMode(state.mode);
   setMobilePanel('board');
