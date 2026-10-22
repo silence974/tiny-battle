@@ -269,14 +269,40 @@ test('phase rail owns the current actions and map cards use the smallest visual 
   assert.match(app, /phase-step-actions/);
   assert.match(app, /tile-points/);
   assert.match(app, /tile-garrison/);
+  assert.match(app, /tile\.garrison \|\| \{\}/);
+  assert.match(app, /tile\.blackPower !== null/);
   assert.doesNotMatch(app.slice(app.indexOf('function renderTileVisual'), app.indexOf('function closeTileDetail')), /coord\.textContent|cell\.append\(coord/);
   assert.match(css, /body\.is-game-active \.game-right-column\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)/s);
   assert.match(css, /\.phase-step-actions\s*\{/);
   assert.match(css, /\.phase-step\.is-complete\s*\{[^}]*background:\s*var\(--ef-chip\)/s);
-  assert.match(css, /\.tile-main\s*\{[^}]*font-size:\s*\.7rem/s);
+  assert.match(css, /\.tile-main\s*\{[^}]*font-size:\s*(?:\.9|1)rem/s);
   assert.match(css, /\.tile-points\s*\{/);
   assert.match(css, /\.tile-garrison\s*\{/);
   assert.match(css, /body\.is-game-active \.game-left-column \.card-chip\s*\{[^}]*font-size:\s*\.58rem/s);
+});
+
+test('purchase phase shows full market cards, power badges, and one-shot turn audio', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(html, /id=["']purchase-actions["']/);
+  assert.match(html, /id=["']purchase-market["']/);
+  assert.match(html, /id=["']purchase-confirm["']/);
+  assert.match(html, /id=["']purchase-random["']/);
+  assert.match(app, /function renderPurchaseActions/);
+  assert.match(app, /selectedPurchaseSlot/);
+  assert.match(app, /purchaseSlot/);
+  assert.match(app, /faceUpCards\.map\(\(card, index\)/);
+  assert.match(app, /purchase_face_up/);
+  assert.match(app, /purchase_blind/);
+  assert.match(app, /config\.units\[unit\]\?\.power/);
+  assert.match(app, /previousActiveSeat|lastActiveSeat/);
+  assert.match(app, /AudioContext/);
+  assert.match(css, /\.purchase-market\s*\{/);
+  assert.match(css, /\.purchase-market\s*\{[^}]*grid-template-columns:\s*repeat\(2/s);
+  assert.match(css, /body\.is-game-active \.purchase-market\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /\.purchase-market-card\.is-selected/);
+  assert.match(css, /\.tile-main\s*\{[^}]*font-size:\s*(?:\.9|1)rem/s);
 });
 
 test('player phase guidance is a live vertical step bar with current action hints', () => {

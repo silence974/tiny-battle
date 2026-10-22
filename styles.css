@@ -178,7 +178,7 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .tile.owner-p4 { --seat-accent: var(--seat-p4); --seat-tint: var(--seat-p4-tint); --seat-ink: var(--seat-p4-ink); }
 .tile.owner-p1::before, .tile.owner-p2::before, .tile.owner-p3::before, .tile.owner-p4::before { position: absolute; inset: 0 0 auto; height: 5px; background: var(--seat-accent); content: ""; }
 .tile-coord { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
-.tile-main { max-width: 82%; color: inherit; font-size: .7rem; font-weight: 850; line-height: 1.1; }
+.tile-main { max-width: 82%; color: inherit; font-size: 1rem; font-weight: 900; line-height: 1.05; }
 .tile-points { position: absolute; top: .3rem; right: .36rem; color: inherit; font-family: "Saira", monospace; font-size: .65rem; font-weight: 850; font-variant-numeric: tabular-nums; }
 .tile-garrison { position: absolute; right: .3rem; bottom: .25rem; display: inline-flex; align-items: center; gap: .12rem; color: inherit; font-family: "Saira", monospace; font-size: .62rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .tile-garrison-icon { font-size: .55rem; line-height: 1; }
@@ -263,6 +263,23 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .card-chip-production .production-tier { grid-template-columns: 3rem minmax(0, 1fr); min-height: 34px; padding-inline: .2rem; border-top: 0; font-size: 1rem; }
 .card-chip-production .production-tier:last-child { border-bottom: 0; }
 .card-chip-cost { margin-top: auto; padding-top: .42rem; color: var(--ef-ink); border-top: 1px solid var(--ef-rule); font-size: .9375rem; font-weight: 750; }
+.purchase-actions { display: grid; gap: .4rem; min-width: 0; }
+.purchase-market { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; min-width: 0; margin-top: .35rem; padding: .1rem .1rem .35rem; }
+.purchase-market-card { width: 100%; min-width: 0; aspect-ratio: 1 / 1; gap: .25rem; padding: .45rem; overflow: hidden; font-size: .78rem; text-align: left; }
+.purchase-market-card.is-selected { border-width: 3px; border-color: var(--ef-ink); background: var(--ef-signal); box-shadow: 0 0 0 2px var(--ef-signal); }
+.purchase-market-card:disabled { cursor: not-allowed; opacity: .48; }
+.purchase-market-card:disabled:hover { color: var(--ef-ink); border-color: var(--ef-ink); background: var(--ef-panel); }
+.purchase-market-card .card-chip-header { gap: .3rem; padding-bottom: .22rem; }
+.purchase-market-card .card-chip-header strong:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.purchase-market-card .card-chip-points { font-size: 1.15rem; }
+.purchase-market-card .card-chip-production .production-tier { grid-template-columns: 2rem minmax(0, 1fr); min-height: 24px; padding-inline: .1rem; font-size: .75rem; }
+.purchase-market-card .card-chip-production::before { top: 1.35rem; left: 2rem; }
+.purchase-market-card .production-tier-header { padding-inline: .1rem; font-size: .7rem; }
+.purchase-market-card .card-chip-cost { padding-top: .25rem; font-size: .7rem; }
+.purchase-selection-status { margin: 0; color: var(--ef-ink-2); font-size: .68rem; line-height: 1.35; }
+.purchase-controls { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+.purchase-controls button { min-width: 0; padding: .45rem .45rem; font-size: .68rem; }
+.purchase-controls #purchase-pass { grid-column: 1 / -1; }
 .actions { display: grid; gap: .45rem; margin-top: .8rem; }
 .action-button { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; text-align: left; }
 .action-button .action-type { color: inherit; }
@@ -387,6 +404,8 @@ body.is-game-active .app-shell { height: calc(100dvh - 55px); padding-block: .5r
   body.is-game-active .phase-summary { gap: .25rem; padding-top: .3rem; }
   body.is-game-active .phase-summary strong, body.is-game-active .phase-label { font-size: .62rem; }
   body.is-game-active .phase-guidance, body.is-game-active .player-overview .stat-row { display: none; }
+  body.is-game-active .purchase-market { display: flex; overflow-x: auto; }
+  body.is-game-active .purchase-market-card { flex: 0 0 min(128px, 38vw); width: auto; }
   body.is-game-active .player-overview { padding: .6rem; }
   body.is-game-active .player-overview .panel-heading { align-items: center; flex-direction: row; }
   body.is-game-active .player-overview .resource-strip { margin: .5rem 0; }
@@ -403,6 +422,7 @@ body.is-game-active .app-shell { height: calc(100dvh - 55px); padding-block: .5r
   .entry-panel label, .entry-panel .entry-action { width: 100%; }
   .board { gap: 2px; padding: .28rem; }
   .tile { padding: .24rem; font-size: .52rem; }
+  .tile-main { font-size: .76rem; }
   .tile-detail { font-size: .47rem; }
   .tile-inspector { width: calc(100vw - 1rem); max-height: calc(100vh - 1rem); }
   .card-list { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }

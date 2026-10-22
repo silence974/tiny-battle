@@ -45,6 +45,9 @@
     snapshot: null,
     hand: [],
     handPage: 0,
+    selectedPurchaseSlot: null,
+    lastActiveSeat: null,
+    audioContext: null,
     transport: null,
     debugChannel: null,
   };
@@ -85,6 +88,42 @@
   function setError(error) {
     $('error').textContent = error ? (error.message || String(error)) : '';
     if (error) setConnectionState('error', '连接异常');
+  }
+  function unlockTurnAudio() {
+    if (state.audioContext) {
+      if (state.audioContext.state === 'suspended') void state.audioContext.resume().catch(() => {});
+      return;
+    }
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    try {
+      state.audioContext = new AudioContext();
+      if (state.audioContext.state === 'suspended') void state.audioContext.resume().catch(() => {});
+    } catch {
+      state.audioContext = null;
+    }
+  }
+  function playTurnCue() {
+    const context = state.audioContext;
+    if (!context || context.state !== 'running') return;
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, now);
+    oscillator.frequency.exponentialRampToValueAtTime(660, now + .12);
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(.12, now + .01);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + .14);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + .15);
+  }
+  function notifyTurn(snapshot, previousActiveSeat) {
+    if (state.mode !== 'player' || previousActiveSeat === null || previousActiveSeat === snapshot.activeSeat) return;
+    const me = snapshot.players.find((player) => player.id === state.enginePlayerId);
+    if (me?.seat === snapshot.activeSeat) playTurnCue();
   }
   function id() {
     const key = 'tiny-battle-312-client-id';
@@ -173,6 +212,10 @@
   function tileForcesLabel(garrison = {}) {
     const forces = Object.entries(garrison).filter(([, count]) => count);
     return forces.length ? forces.map(([unit, count]) => `${UNIT_LABELS[unit] || unit} ${count}`).join(' / ') : '无';
+  }
+
+  function tileForcePower(garrison = {}, config = window.CONFIG_312) {
+    return Object.entries(garrison || {}).reduce((sum, [unit, count]) => sum + (count || 0) * (config.units[unit]?.power || 0), 0);
   }
 
   function tileProductionLabel(production = {}) {
@@ -264,7 +307,9 @@
     cell.className = `${cell.className.split(' ').filter((name) => !name.startsWith('owner-') && !['unknown', 'black', 'black_hq', 'hq', 'land'].includes(name)).join(' ')} ${tile.explored ? tile.kind : 'unknown'}${ownerClass}`.trim();
     cell.replaceChildren();
     const building = tileBuildingLabel(tile);
-    const garrison = tile.garrison ? Object.values(tile.garrison).reduce((sum, count) => sum + (count || 0), 0) : 0;
+    const garrisonPower = tile.blackPower !== null && tile.blackPower !== undefined
+      ? tile.blackPower
+      : tileForcePower(tile.garrison || {});
     const expedition = tile.expeditions?.length ? `远征 ${tile.expeditions.length}` : '';
     const main = document.createElement('span');
     main.className = 'tile-main';
@@ -279,19 +324,20 @@
     points.hidden = !tile.explored || (building === '无' && !['hq', 'black_hq'].includes(tile.kind));
     const garrisonBadge = document.createElement('span');
     garrisonBadge.className = 'tile-garrison';
-    garrisonBadge.hidden = !tile.explored || garrison <= 0;
+    garrisonBadge.hidden = !tile.explored || garrisonPower <= 0;
+    garrisonBadge.setAttribute('aria-label', `驻扎战力 ${garrisonPower}`);
     const garrisonIcon = document.createElement('span');
     garrisonIcon.className = 'tile-garrison-icon';
     garrisonIcon.setAttribute('aria-hidden', 'true');
-    garrisonIcon.textContent = '♟';
+    garrisonIcon.textContent = '⚔';
     const garrisonValue = document.createElement('span');
-    garrisonValue.textContent = String(garrison);
+    garrisonValue.textContent = String(garrisonPower);
     garrisonBadge.append(garrisonIcon, garrisonValue);
     const detail = document.createElement('span');
     detail.className = 'tile-detail';
     detail.textContent = expedition;
     cell.append(main, points, garrisonBadge, detail);
-    return { building, garrison, expedition };
+    return { building, garrisonPower, expedition };
   }
 
   function closeTileDetail() {
@@ -628,9 +674,65 @@
     renderHandPage(hand);
   }
 
+  function renderPurchaseActions(actions = []) {
+    const panel = $('purchase-actions');
+    if (!panel) return;
+    const snapshot = state.snapshot;
+    const isPurchase = snapshot?.phase === 'purchase';
+    panel.hidden = !isPurchase;
+    if (!isPurchase) return;
+    const market = $('purchase-market');
+    const faceUpActions = new Map(actions.filter((action) => action.type === 'purchase_face_up').map((action) => [action.card, action]));
+    const faceUpCards = snapshot.market?.faceUp || [];
+    const currentSelectedCard = Number.isInteger(state.selectedPurchaseSlot) ? faceUpCards[state.selectedPurchaseSlot] : null;
+    if (!currentSelectedCard || !faceUpActions.has(currentSelectedCard)) state.selectedPurchaseSlot = null;
+    market.replaceChildren(...faceUpCards.map((card, index) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = `card-chip purchase-market-card${state.selectedPurchaseSlot === index ? ' is-selected' : ''}`;
+      item.dataset.purchaseSlot = String(index);
+      item.dataset.purchaseCard = card;
+      item.disabled = !faceUpActions.has(card);
+      item.setAttribute('aria-pressed', String(state.selectedPurchaseSlot === index));
+      item.setAttribute('aria-label', `${cardDescription(card).label}，${item.disabled ? '当前不可购买' : '选择后确认购买'}`);
+      renderCardDetail(item, card);
+      item.classList.add('purchase-market-card');
+      item.addEventListener('click', () => {
+        state.selectedPurchaseSlot = state.selectedPurchaseSlot === index ? null : index;
+        renderPurchaseActions(actions);
+      });
+      return item;
+    }));
+    const selectedCardIndex = state.selectedPurchaseSlot;
+    const selectedCard = Number.isInteger(selectedCardIndex) ? faceUpCards[selectedCardIndex] : null;
+    const selectedDescription = selectedCard ? cardDescription(selectedCard) : null;
+    $('purchase-selection-status').textContent = selectedDescription
+      ? `已选：${selectedDescription.label}，点击“购买所选”确认`
+      : '请选择一张明牌';
+    const confirm = $('purchase-confirm');
+    confirm.disabled = !selectedCard || !faceUpActions.has(selectedCard);
+    confirm.onclick = () => {
+      const card = selectedCard;
+      if (!card || !faceUpActions.has(card)) return;
+      state.selectedPurchaseSlot = null;
+      void submitAction({ type: 'purchase_face_up', card });
+    };
+    const random = $('purchase-random');
+    random.disabled = !actions.some((action) => action.type === 'purchase_blind');
+    random.onclick = () => void submitAction({ type: 'purchase_blind' });
+    const pass = $('purchase-pass');
+    pass.disabled = !actions.some((action) => action.type === 'pass_purchase');
+    pass.onclick = () => void submitAction({ type: 'pass_purchase' });
+  }
+
   function renderActions(actions) {
+    renderPurchaseActions(actions);
     const actionsPanel = $('legal-actions');
     const currentPhase = state.snapshot?.phase || document.querySelector('.phase-step.is-current')?.dataset.phase;
+    if (currentPhase === 'purchase') {
+      actionsPanel.replaceChildren();
+      return;
+    }
     const host = currentPhase
       ? document.querySelector(`.phase-step[data-phase="${currentPhase}"] .phase-step-actions`)
       : null;
@@ -711,7 +813,10 @@
 
   function renderSnapshot(snapshot) {
     if (!snapshot) return;
+    const previousActiveSeat = state.lastActiveSeat;
     state.snapshot = snapshot;
+    state.lastActiveSeat = snapshot.activeSeat;
+    notifyTurn(snapshot, previousActiveSeat);
     if (state.mode === 'host') {
       document.body.classList.remove('is-game-active');
       $('game-session-meta').hidden = true;
@@ -905,6 +1010,8 @@
     state.game = null;
     state.started = false;
     state.snapshot = null;
+    state.lastActiveSeat = null;
+    state.selectedPurchaseSlot = null;
     $('entry').hidden = false;
     $('room-panel').hidden = true;
     $('game-panel').hidden = true;
@@ -941,6 +1048,8 @@
       state.clientId = state.hostId;
       state.enginePlayerId = 'p1';
       state.started = false;
+      state.lastActiveSeat = null;
+      state.selectedPurchaseSlot = null;
       state.room = roomCode();
       state.roomState = Room.createRoomState({ room: state.room, hostId: state.hostId, invites: Room.createInvites(['P1', 'P2', 'P3', 'P4']) });
       state.game = Engine.createGame({ seed: Date.now(), players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
@@ -983,6 +1092,8 @@
       state.snapshot = null;
       state.game = null;
       state.started = false;
+      state.lastActiveSeat = null;
+      state.selectedPurchaseSlot = null;
       $('game-panel').hidden = true;
       $('game-session-meta').hidden = true;
       document.body.classList.remove('is-game-active');
@@ -1088,6 +1199,8 @@
       state.hostId = null;
       state.clientId = id();
       state.enginePlayerId = 'p1';
+      state.lastActiveSeat = null;
+      state.selectedPurchaseSlot = null;
       state.room = null;
       state.roomState = null;
       state.game = Engine.createGame({ seed: 312, players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
@@ -1183,6 +1296,8 @@
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeTileDetail();
   });
+  document.addEventListener('pointerdown', unlockTurnAudio, { passive: true });
+  document.addEventListener('keydown', unlockTurnAudio);
   window.addEventListener('pagehide', () => {
     if (state.mode === 'player' && state.transport) state.transport.leave();
   });
