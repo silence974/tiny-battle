@@ -327,9 +327,9 @@ body.is-game-active .game-left-column .card-chip-header { gap: .25rem; padding-b
 body.is-game-active .game-left-column .card-chip-header strong:first-child { overflow: hidden; font-size: .65rem; text-overflow: ellipsis; white-space: nowrap; }
 body.is-game-active .game-left-column .card-chip-points { font-size: .85rem; }
 body.is-game-active .game-left-column .card-chip-production::before { top: 1rem; left: 1.65rem; }
-body.is-game-active .game-left-column .production-tier-header { padding-inline: .1rem; font-size: .5rem; }
-body.is-game-active .game-left-column .card-chip-production .production-tier { grid-template-columns: 1.65rem minmax(0, 1fr); min-height: 17px; padding-inline: .1rem; font-size: .52rem; line-height: 1.05; }
-body.is-game-active .game-left-column .card-chip-cost { padding-top: .2rem; font-size: .5rem; line-height: 1.15; }
+body.is-game-active .game-left-column .production-tier-header { padding-inline: .1rem; font-size: .54rem; }
+body.is-game-active .game-left-column .card-chip-production .production-tier { grid-template-columns: 1.65rem minmax(0, 1fr); min-height: 18px; padding-inline: .1rem; font-size: .56rem; line-height: 1.08; }
+body.is-game-active .game-left-column .card-chip-cost { padding-top: .2rem; font-size: .54rem; line-height: 1.18; }
 body.is-game-active .game-center-column .board-card { width: 100%; height: 100%; }
 body.is-game-active .game-center-column .board { width: min(calc(100% - 1rem), calc(100dvh - 150px)); max-width: calc(100% - 1rem); min-width: 0; justify-self: center; margin-block: .65rem; }
 
