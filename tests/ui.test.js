@@ -12,6 +12,7 @@ test('root home page loads browser dependencies before app code and preserves th
   assert.match(html, /supabase-config\.js/);
   assert.match(html, /engine312\.js/);
   assert.match(html, /supabase-room\.js/);
+  assert.match(html, /purchase-ui\.js/);
   assert.match(html, /app\.js/);
   assert.match(html, /id=["']create-room["']/);
   assert.match(html, /创建房间|创建对局/);
@@ -290,6 +291,7 @@ test('purchase phase shows full market cards, power badges, and one-shot turn au
   assert.match(html, /id=["']purchase-confirm["']/);
   assert.match(html, /id=["']purchase-random["']/);
   assert.match(app, /function renderPurchaseActions/);
+  assert.match(app, /PurchaseUI312\.createPurchaseCommandHandlers/);
   assert.match(app, /selectedPurchaseSlot/);
   assert.match(app, /purchaseSlot/);
   assert.match(app, /faceUpCards\.map\(\(card, index\)/);

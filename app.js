@@ -680,12 +680,30 @@
     const snapshot = state.snapshot;
     const isPurchase = snapshot?.phase === 'purchase';
     panel.hidden = !isPurchase;
-    if (!isPurchase) return;
+    if (!isPurchase) {
+      state.selectedPurchaseSlot = null;
+      return;
+    }
     const market = $('purchase-market');
     const faceUpActions = new Map(actions.filter((action) => action.type === 'purchase_face_up').map((action) => [action.card, action]));
     const faceUpCards = snapshot.market?.faceUp || [];
     const currentSelectedCard = Number.isInteger(state.selectedPurchaseSlot) ? faceUpCards[state.selectedPurchaseSlot] : null;
     if (!currentSelectedCard || !faceUpActions.has(currentSelectedCard)) state.selectedPurchaseSlot = null;
+    const purchaseHandlers = window.PurchaseUI312.createPurchaseCommandHandlers({
+      actions,
+      faceUpCards,
+      faceUpActions,
+      getSelectedSlot: () => state.selectedPurchaseSlot,
+      setSelectedSlot: (slot) => {
+        state.selectedPurchaseSlot = slot;
+        renderPurchaseActions(actions);
+      },
+      clearSelection: () => {
+        state.selectedPurchaseSlot = null;
+        renderPurchaseActions(actions);
+      },
+      submitAction,
+    });
     market.replaceChildren(...faceUpCards.map((card, index) => {
       const item = document.createElement('button');
       item.type = 'button';
@@ -697,10 +715,7 @@
       item.setAttribute('aria-label', `${cardDescription(card).label}，${item.disabled ? '当前不可购买' : '选择后确认购买'}`);
       renderCardDetail(item, card);
       item.classList.add('purchase-market-card');
-      item.addEventListener('click', () => {
-        state.selectedPurchaseSlot = state.selectedPurchaseSlot === index ? null : index;
-        renderPurchaseActions(actions);
-      });
+      item.addEventListener('click', () => purchaseHandlers.selectSlot(index));
       return item;
     }));
     const selectedCardIndex = state.selectedPurchaseSlot;
@@ -711,18 +726,13 @@
       : '请选择一张明牌';
     const confirm = $('purchase-confirm');
     confirm.disabled = !selectedCard || !faceUpActions.has(selectedCard);
-    confirm.onclick = () => {
-      const card = selectedCard;
-      if (!card || !faceUpActions.has(card)) return;
-      state.selectedPurchaseSlot = null;
-      void submitAction({ type: 'purchase_face_up', card });
-    };
+    confirm.onclick = () => void purchaseHandlers.confirm();
     const random = $('purchase-random');
     random.disabled = !actions.some((action) => action.type === 'purchase_blind');
-    random.onclick = () => void submitAction({ type: 'purchase_blind' });
+    random.onclick = () => void purchaseHandlers.random();
     const pass = $('purchase-pass');
     pass.disabled = !actions.some((action) => action.type === 'pass_purchase');
-    pass.onclick = () => void submitAction({ type: 'pass_purchase' });
+    pass.onclick = () => void purchaseHandlers.pass();
   }
 
   function renderActions(actions) {
