@@ -34,6 +34,7 @@
     room: null,
     roomState: null,
     game: null,
+    started: false,
     snapshot: null,
     transport: null,
     debugChannel: null,
@@ -299,30 +300,10 @@
     preview.className = 'tile tile-inspector-preview';
     preview.setAttribute('aria-label', `地块 ${coord} 预览`);
     renderTileVisual(preview, tile);
-    const building = window.CONFIG_312?.buildings?.[tile.building];
     const tierInfo = productionTierForTile(tile);
     const { capacity, activeTier, tiers } = tierInfo;
     const currentProduction = currentProductionForTile(tile, tierInfo);
-    const rows = [
-      ['类型', tile.explored ? (tile.kind === 'black_hq' ? '黑总部' : tile.kind) : '未知'],
-      ['归属', tileOwnerLabel(tile)],
-      ['建筑', tileBuildingLabel(tile)],
-      ['驻军', tile.explored ? tileForcesLabel(tile.garrison) : '未知'],
-      ['产出', tile.explored ? tileProductionLabel(currentProduction) : '未知'],
-      ['控制', tile.explored ? (tile.controlled ? '已控制' : '未控制') : '未知'],
-      ['黑方力量', tile.blackPower ? String(tile.blackPower) : '—'],
-      ['远征队', tile.expeditions?.length ? String(tile.expeditions.length) : '无'],
-    ];
     const copy = $('tile-inspector-copy');
-    const summary = document.createElement('dl');
-    summary.className = 'detail-list';
-    summary.append(...rows.flatMap(([label, value]) => {
-      const term = document.createElement('dt');
-      term.textContent = label;
-      const description = document.createElement('dd');
-      description.textContent = value;
-      return [term, description];
-    }));
     const tierPanel = document.createElement('section');
     tierPanel.id = 'tile-inspector-tier';
     tierPanel.className = 'tile-inspector-section';
@@ -375,7 +356,7 @@
       none.textContent = '未知';
       forcesPanel.append(none);
     }
-    copy.replaceChildren(summary, tierPanel, forcesPanel);
+    copy.replaceChildren(tierPanel, forcesPanel);
     inspector.hidden = false;
   }
 
@@ -518,6 +499,11 @@
 
   function renderHostLog(game) {
     if (!game || !$('host-log')) return;
+    if (!state.started) {
+      const joined = state.roomState?.players.size || 0;
+      renderLogList($('host-log'), [{ type: '等待四席入座', reason: `${joined}/${Room.PLAYER_COUNT}` }], '等待四席入座');
+      return;
+    }
     const events = [{ type: '当前阶段', phase: game.phase, round: game.round }, ...(game.events || []).slice(-19)];
     const result = Engine.outcome(game, window.CONFIG_312);
     if (result.status !== 'ongoing') {
@@ -570,6 +556,7 @@
   async function sendEnvelope(envelope) { return state.transport.send(envelope); }
 
   async function broadcastState(target = null, requestId = undefined) {
+    if (!state.started) return;
     const targets = target ? [target] : [...state.roomState.players.keys()];
     for (const playerId of targets) {
       const player = state.roomState.players.get(playerId);
@@ -578,7 +565,7 @@
         type: 'state',
         from: state.hostId,
         to: playerId,
-        requestId: requestId || undefined,
+        requestId: target && playerId === target ? requestId : undefined,
         seq: state.game.seq,
         payload: { snapshot: Engine.snapshot(state.game, player?.engineId || playerId) },
       }));
@@ -588,12 +575,24 @@
 
   async function sendRoster(target = null) {
     renderRoster([...state.roomState.players.values()].map(({ id, name, seat }) => ({ id, name, seat })));
+    renderHostLog(state.game);
     await sendEnvelope(Room.makeEnvelope({
       room: state.room,
       type: 'roster',
       from: state.hostId,
       to: target,
       payload: { players: [...state.roomState.players.values()].map(({ id, name, seat }) => ({ id, name, seat })) },
+    }));
+  }
+
+  async function sendWaiting(target, requestId) {
+    await sendEnvelope(Room.makeEnvelope({
+      room: state.room,
+      type: 'waiting',
+      from: state.hostId,
+      to: target,
+      requestId,
+      payload: { joined: state.roomState.players.size, required: Room.PLAYER_COUNT, started: false },
     }));
   }
 
@@ -607,9 +606,22 @@
     }
   }
 
+  function startGameAfterAllSeats() {
+    if (state.started || !state.roomState || state.roomState.players.size !== Room.PLAYER_COUNT) return false;
+    state.started = true;
+    settleHostAutomatic();
+    renderHostLog(state.game);
+    setStatus('四席已入座，对局开始');
+    return true;
+  }
+
   async function acceptPlayerCommand(message) {
     const player = state.roomState.players.get(message.from);
     if (!player) return;
+    if (!state.started) {
+      await sendEnvelope(Room.makeEnvelope({ room: state.room, type: 'reject', from: state.hostId, to: message.from, requestId: message.requestId, payload: { reason: 'waiting-for-seats' } }));
+      return;
+    }
     const command = message.payload || {};
     if (command.seq !== state.game.seq) {
       await sendEnvelope(Room.makeEnvelope({ room: state.room, type: 'reject', from: state.hostId, to: message.from, requestId: message.requestId, payload: Room.commandConflict({ expectedSeq: state.game.seq, receivedSeq: command.seq, requestId: message.requestId }) }));
@@ -620,7 +632,8 @@
       settleHostAutomatic();
       renderHostLog(state.game);
       await sendRoster();
-      await broadcastState(null, message.requestId);
+      await broadcastState();
+      await broadcastState(message.from, message.requestId);
     } catch (error) {
       await sendEnvelope(Room.makeEnvelope({ room: state.room, type: 'reject', from: state.hostId, to: message.from, requestId: message.requestId, payload: { reason: error.message } }));
     }
@@ -634,7 +647,19 @@
       return;
     }
     await sendRoster(message.from);
-    await broadcastState(message.from, message.requestId);
+    const startedNow = startGameAfterAllSeats();
+    if (!state.started) {
+      await sendWaiting(message.from, message.requestId);
+      publishDebug();
+      return;
+    }
+    if (startedNow) {
+      await sendRoster();
+      await broadcastState();
+      await broadcastState(message.from, message.requestId);
+    } else {
+      await broadcastState(message.from, message.requestId);
+    }
     publishDebug();
   }
 
@@ -644,6 +669,10 @@
       return;
     }
     await sendRoster(message.from);
+    if (!state.started) {
+      await sendWaiting(message.from, message.requestId);
+      return;
+    }
     await broadcastState(message.from, message.requestId);
   }
 
@@ -672,6 +701,7 @@
     state.room = null;
     state.roomState = null;
     state.game = null;
+    state.started = false;
     state.snapshot = null;
     $('room-panel').hidden = true;
     $('game-panel').hidden = true;
@@ -704,6 +734,7 @@
       state.hostId = id();
       state.clientId = state.hostId;
       state.enginePlayerId = 'p1';
+      state.started = false;
       state.room = roomCode();
       state.roomState = Room.createRoomState({ room: state.room, hostId: state.hostId, invites: Room.createInvites(['P1', 'P2', 'P3', 'P4']) });
       state.game = Engine.createGame({ seed: Date.now(), players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
@@ -717,7 +748,6 @@
         },
       });
       await state.transport.createRoom({ room: state.room, clientId: state.hostId, hostId: state.hostId, role: 'host' });
-      settleHostAutomatic();
       $('room-panel').hidden = false;
       $('room-code').textContent = state.room;
       renderLinks(Room.createSeatLinks(state.roomState, baseUrl()));
@@ -837,6 +867,7 @@
       closeDebugChannel();
       await closeTransport();
       state.mode = 'simulation';
+      state.started = true;
       state.hostId = null;
       state.clientId = id();
       state.enginePlayerId = 'p1';

@@ -188,6 +188,59 @@ test('player join waits for the host seat confirmation snapshot', async () => {
   await host.leave();
 });
 
+test('player join and resync accept an explicit waiting-for-seats response', async () => {
+  const channels = [];
+  const client = {
+    auth: { signInAnonymously: async () => ({ error: null }) },
+    channel(topic) {
+      const channel = {
+        topic,
+        handlers: [],
+        on(_kind, _filter, handler) { this.handlers.push(handler); return this; },
+        subscribe(callback) { callback('SUBSCRIBED'); return this; },
+        async send(message) {
+          for (const peer of channels.filter((candidate) => candidate.topic === topic)) {
+            for (const handler of peer.handlers) await handler({ payload: message.payload });
+          }
+          return 'ok';
+        },
+      };
+      channels.push(channel);
+      return channel;
+    },
+    async removeChannel(channel) { channels.splice(channels.indexOf(channel), 1); },
+  };
+  const config = { url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test' };
+  const roomState = room();
+  let host;
+  const waiting = (message) => host.send(Room.makeEnvelope({
+    room: roomState.room,
+    type: 'waiting',
+    from: 'host-1',
+    to: message.from,
+    requestId: message.requestId,
+    seq: 0,
+    payload: { joined: roomState.players.size, required: Room.PLAYER_COUNT, started: false },
+  }));
+  host = Room.createRoomTransport({ client, config, handlers: {
+    hello: async (message) => {
+      const result = Room.requestSeat(roomState, { clientId: message.from, ...message.payload });
+      assert.equal(result.accepted, true);
+      await waiting(message);
+    },
+    resync: waiting,
+  } });
+  await host.createRoom({ room: roomState.room, clientId: 'host-1', hostId: 'host-1', role: 'host' });
+  const player = Room.createRoomTransport({ client, config });
+
+  await player.join({ room: roomState.room, seat: 1, token: 'tok-a', clientId: 'client-a', name: 'A' });
+  const snapshot = await player.requestSnapshot();
+  assert.deepEqual(snapshot, { joined: 1, required: Room.PLAYER_COUNT, started: false });
+
+  await player.leave();
+  await host.leave();
+});
+
 test('real transport broadcast loopback routes targeted state and commands for host plus four seats', async () => {
   const channels = [];
   const client = {

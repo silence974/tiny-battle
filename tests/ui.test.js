@@ -74,6 +74,21 @@ test('host view is lobby-and-log only and auto-advances non-decision phases', ()
   assert.match(app, /state\.mode === 'host'/);
 });
 
+test('host keeps the game in the lobby until all four seats are ready', () => {
+  const app = read('app.js');
+  assert.match(app, /started: false/);
+  assert.match(app, /function startGameAfterAllSeats/);
+  assert.match(app, /state\.roomState\.players\.size !== Room\.PLAYER_COUNT/);
+  assert.match(app, /等待四席入座/);
+  assert.match(app, /if \(!state\.started\) return/);
+});
+
+test('tile inspector keeps the clean overlay content contract', () => {
+  const app = read('app.js');
+  assert.doesNotMatch(app, /summary\.className = 'detail-list'/);
+  assert.match(app, /copy\.replaceChildren\(tierPanel, forcesPanel\)/);
+});
+
 test('board tiles are square and expose an accessible snapshot detail inspector', () => {
   const html = read('index.html');
   const app = read('app.js');

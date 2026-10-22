@@ -170,6 +170,7 @@
         joinReady = null;
         if (payload.type === 'reject') pending.reject(new Error(payload.payload?.reason || payload.reason || 'join rejected'));
         else if (payload.type === 'state') pending.resolve(payload.payload?.snapshot || payload.payload || payload);
+        else if (payload.type === 'waiting') pending.resolve(payload.payload || payload);
       }
       const waiter = waiters.get(payload.requestId);
       if (waiter) {

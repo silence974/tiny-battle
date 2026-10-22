@@ -32,6 +32,6 @@ function createAgentClient({ transport, link, clientId, name }) {
   return { join, snapshot, legalActions, act, leave };
 }
 
-const API = { createAgentClient };
-if (typeof module !== 'undefined' && module.exports) module.exports = API;
-if (typeof window !== 'undefined') window.Agent312 = API;
+const AGENT_API = { createAgentClient };
+if (typeof module !== 'undefined' && module.exports) module.exports = AGENT_API;
+if (typeof window !== 'undefined') window.Agent312 = AGENT_API;

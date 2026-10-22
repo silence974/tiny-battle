@@ -897,7 +897,7 @@ function checkInvariants(input) {
   return { ok: true };
 }
 
-const API = {
+const ENGINE_API = {
   createGame,
   snapshot,
   legalActions,
@@ -909,5 +909,5 @@ const API = {
   key,
 };
 
-if (typeof module !== 'undefined' && module.exports) module.exports = API;
-if (typeof window !== 'undefined') window.Engine312 = API;
+if (typeof module !== 'undefined' && module.exports) module.exports = ENGINE_API;
+if (typeof window !== 'undefined') window.Engine312 = ENGINE_API;
