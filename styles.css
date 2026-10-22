@@ -264,7 +264,7 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .card-chip-production::before { position: absolute; top: 1.9rem; bottom: 0; left: 3rem; width: 1px; background: var(--ef-rule); content: ""; }
 .card-chip-production .production-tier-header { padding-inline: .2rem; }
 .card-chip-production .production-tier { grid-template-columns: 3rem minmax(0, 1fr); min-height: 34px; padding-inline: .2rem; border-top: 0; font-size: 1rem; }
-.card-chip-production .production-tier:last-child { border-bottom: 1px solid var(--ef-rule); }
+.card-chip-production .production-tier:last-child { border-bottom: 0; }
 .card-chip-cost { margin-top: auto; padding-top: .42rem; color: var(--ef-ink); border-top: 1px solid var(--ef-rule); font-size: .9375rem; font-weight: 750; }
 .actions { display: grid; gap: .45rem; margin-top: .8rem; }
 .action-button { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; text-align: left; }

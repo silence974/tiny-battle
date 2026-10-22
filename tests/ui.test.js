@@ -163,6 +163,7 @@ test('hand cards and building details expose rule-driven tiers, score, costs, an
   assert.match(css, /\.card-chip-header/);
   assert.match(css, /\.card-chip\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/s);
   assert.match(css, /\.card-chip-production::before/);
+  assert.match(css, /\.card-chip-production \.production-tier:last-child\s*\{[^}]*border-bottom:\s*0/s);
   assert.match(css, /\.card-chip-points\s*\{[^}]*font-size:\s*1\.5rem/s);
   assert.match(css, /\.card-chip-cost\s*\{[^}]*font-size:\s*\.9375rem/s);
   assert.match(css, /\.production-tier\.is-active/);
