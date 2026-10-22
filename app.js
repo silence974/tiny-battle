@@ -826,6 +826,9 @@
     const previousActiveSeat = state.lastActiveSeat;
     state.snapshot = snapshot;
     state.lastActiveSeat = snapshot.activeSeat;
+    if (state.mode === 'player') {
+      setStatus(`已同步 · 房间 ${state.room || '—'} · 序号 ${snapshot.seq}`);
+    }
     notifyTurn(snapshot, previousActiveSeat);
     if (state.mode === 'host') {
       document.body.classList.remove('is-game-active');

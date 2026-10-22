@@ -45,6 +45,12 @@ test('seat links are opened as automatic join links and browser boot handles the
   assert.doesNotMatch(app, /\$\('player-link'\)/);
 });
 
+test('player snapshots replace the waiting status with current sync evidence', () => {
+  const app = read('app.js');
+  assert.match(app, /state\.mode === 'player'/);
+  assert.match(app, /已同步 · 房间 \$\{state\.room \|\| '—'\} · 序号 \$\{snapshot\.seq\}/);
+});
+
 test('quick simulation keeps the 312 four-seat rule explicit', () => {
   const html = read('index.html');
   const app = read('app.js');
