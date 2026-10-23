@@ -530,9 +530,13 @@ test('recruit entry supports one unit type and at most three units', () => {
   assert.match(config, /maxPerAction:\s*3/);
   assert.match(app, /function renderRecruitPanel/);
   assert.match(app, /最多|>= 3/);
+  assert.match(app, /setAttribute\('role', 'table'\)/);
+  assert.match(app, /const totalCost =/);
+  assert.match(app, /recruit-total-cost/);
   assert.match(app, /id = 'recruit-confirm'/);
   assert.match(css, /\.recruit-panel\s*\{/);
   assert.match(css, /\.recruit-controls\s*\{/);
+  assert.match(css, /\.recruit-total-cost\s*\{/);
 });
 
 test('unified stylesheet defines the light board layout and responsive panels', () => {

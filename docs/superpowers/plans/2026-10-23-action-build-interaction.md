@@ -87,6 +87,7 @@
 
 - [x] Implement start-cell filtering, adjacent route selection, endpoint locking, route highlighting, force `− / +`, summary, confirmation, and movement feedback.
 - [x] Keep `deploy` buttons under 派遣 and make recruit a one-unit-type, max-three selector.
+- [x] Keep recruit rows limited to unit attributes/single cost; render quantity, total cost, and confirmation below the table.
 - [x] Mark an unexplored locked endpoint as `战斗`, while retaining route/source detail access and force selection.
 - [x] Run full tests and desktop/mobile browser smoke.
 
