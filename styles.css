@@ -228,6 +228,11 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .phase-summary strong { overflow: hidden; color: var(--ef-ink); font-family: "Saira", sans-serif; font-size: .86rem; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .phase-label { color: var(--ef-ink-2); font-size: .68rem; }
 .phase-guidance { margin: 0; padding: .65rem .72rem; color: var(--ef-ink); border-left: 6px solid var(--ef-signal); background: var(--ef-chip); font-size: .74rem; line-height: 1.55; }
+.phase-transition-banner { position: fixed; z-index: 20; top: 4.8rem; left: 50%; display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: .7rem; align-items: baseline; width: min(720px, calc(100vw - 2rem)); padding: .7rem .9rem; color: var(--ef-ink); border: 1px solid var(--ef-ink); border-left: 8px solid var(--ef-signal); background: var(--ef-panel); box-shadow: 7px 7px 0 var(--ef-ink); opacity: 0; pointer-events: none; transform: translate(-50%, -18px); transition: opacity .18s cubic-bezier(.16, 1, .3, 1), transform .18s cubic-bezier(.16, 1, .3, 1); }
+.phase-transition-banner.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.phase-transition-kicker { color: var(--ef-ink-2); font-family: "Saira", sans-serif; font-size: .62rem; font-weight: 800; letter-spacing: .14em; }
+.phase-transition-label { font-size: 1rem; white-space: nowrap; }
+.phase-transition-detail { min-width: 0; overflow: hidden; font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
 .player-overview[data-seat="1"], .hand-panel[data-seat="1"] { border-top: 5px solid var(--seat-p1); }
 .player-overview[data-seat="2"], .hand-panel[data-seat="2"] { border-top: 5px solid var(--seat-p2); }
 .player-overview[data-seat="3"], .hand-panel[data-seat="3"] { border-top: 5px solid var(--seat-p3); }
@@ -266,7 +271,7 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .purchase-actions { display: grid; gap: .4rem; min-width: 0; }
 .purchase-market { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; min-width: 0; margin-top: .35rem; padding: .1rem .1rem .35rem; }
 .purchase-market-card { width: 100%; min-width: 0; aspect-ratio: 1 / 1; gap: .25rem; padding: .45rem; overflow: hidden; font-size: .78rem; text-align: left; }
-.purchase-market-card.is-selected { border-width: 3px; border-color: var(--ef-ink); background: var(--ef-signal); box-shadow: 0 0 0 2px var(--ef-signal); }
+.purchase-market-card.is-selected { position: relative; z-index: 1; border-width: 4px; border-color: var(--ef-ink); background: var(--ef-panel); box-shadow: 6px 6px 0 var(--ef-signal); }
 .purchase-market-card:disabled { cursor: not-allowed; opacity: .48; }
 .purchase-market-card:disabled:hover { color: var(--ef-ink); border-color: var(--ef-ink); background: var(--ef-panel); }
 .purchase-market-card .card-chip-header { gap: .3rem; padding-bottom: .22rem; }
@@ -379,6 +384,9 @@ body.is-game-active .app-shell { height: calc(100dvh - 55px); padding-block: .5r
   body.is-game-active .phase-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
+  .phase-transition-banner { top: 3.9rem; grid-template-columns: 1fr auto; gap: .2rem .5rem; padding: .55rem .65rem; }
+  .phase-transition-kicker { grid-column: 1 / -1; }
+  .phase-transition-detail { grid-column: 1 / -1; }
   body { background-size: 24px 24px; }
   .app-shell { width: min(100% - 1rem, 1480px); padding-top: .8rem; }
   body.is-game-active .app-shell { padding: .5rem 0; }

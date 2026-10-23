@@ -320,6 +320,47 @@ test('purchase phase shows full market cards, power badges, and one-shot turn au
   assert.match(css, /\.tile-main\s*\{[^}]*font-size:\s*(?:\.9|1)rem/s);
 });
 
+test('purchase UI explains that a seat must end purchase before the next seat acts', () => {
+  const app = read('app.js');
+  assert.match(app, /等待 P\$\{active\?\.seat \|\| '—'\} 结束购牌后轮到你/);
+  assert.match(app, /已购买明牌；还可购买 1 张盲牌，或点击“结束购牌”交给下一位玩家/);
+  assert.match(app, /已购买明牌和盲牌；请点击“结束购牌”交给下一位玩家/);
+});
+
+test('purchase controls hide for waiting seats and gray used purchase slots', () => {
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(app, /purchaseControls\.hidden = !canAct/);
+  assert.match(app, /confirm\.disabled = !canAct \|\| purchase\.faceUp > 0/);
+  assert.match(app, /random\.disabled = !canAct \|\| purchase\.blind > 0/);
+  assert.match(app, /pass\.className = canAct \? 'primary-button' : 'secondary-button'/);
+  assert.match(app, /renderCardDetail\(item, card\);[\s\S]*?item\.classList\.add\('purchase-market-card'\);[\s\S]*?item\.classList\.toggle\('is-selected'/s);
+  assert.doesNotMatch(app, /已选：\$\{selectedDescription\.label\}/);
+  assert.match(css, /\.purchase-market-card\.is-selected\s*\{[^}]*border-width:\s*4px[^}]*background:\s*var\(--ef-panel\)[^}]*box-shadow:\s*6px 6px 0 var\(--ef-signal\)/s);
+});
+
+test('phase transitions expose a timed banner and production output cue', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(html, /id=["']phase-transition-banner["']/);
+  assert.match(html, /id=["']phase-transition-label["']/);
+  assert.match(html, /id=["']phase-transition-detail["']/);
+  assert.match(app, /function renderPhaseTransition/);
+  assert.match(app, /state\.lastPhase/);
+  assert.match(app, /playPhaseCue/);
+  assert.match(app, /productionOutputNotices/);
+  assert.match(app, /productionNoticeOutput/);
+  assert.match(app, /phaseNoticeSeen/);
+  assert.match(app, /phaseNotices: state\.phaseNotices/);
+  assert.match(app, /state\.phaseNoticeQueue/);
+  assert.match(app, /const duration = notice\.kind === 'production' \? 700 : PHASE_DISPLAY_MS/);
+  assert.doesNotMatch(app, /function waitForPhaseDisplay/);
+  assert.match(app, /state\.phaseNotices = settleHostAutomatic\(\)/);
+  assert.match(css, /\.phase-transition-banner/);
+  assert.match(css, /\.phase-transition-banner\.is-visible/);
+});
+
 test('player phase guidance is a live vertical step bar with current action hints', () => {
   const html = read('index.html');
   const app = read('app.js');

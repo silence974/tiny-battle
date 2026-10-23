@@ -256,7 +256,10 @@ function snapshot(input, viewerId, config = DEFAULT_CONFIG) {
         score: player.score,
         scoreBreakdown: clone(player.scoreBreakdown),
       };
-      if (player.id === viewerId) visible.hand = [...player.hand];
+      if (player.id === viewerId) {
+        visible.hand = [...player.hand];
+        visible.purchase = clone(player.purchase);
+      }
       return visible;
     }),
     market: clone(state.market),

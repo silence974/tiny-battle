@@ -50,6 +50,13 @@
     audioContext: null,
     transport: null,
     debugChannel: null,
+    lastPhase: null,
+    phaseBannerTimer: null,
+    phaseNoticeCounter: 0,
+    phaseNoticeSeen: new Set(),
+    phaseNoticeQueue: [],
+    phaseNoticePlaying: false,
+    phaseNotices: [],
   };
 
   const PHASE_LABELS = {
@@ -62,6 +69,7 @@
     ended: '已结束',
   };
   const PHASE_ORDER = ['exploration', 'production', 'purchase', 'action', 'combat', 'black', 'ended'];
+  const PHASE_DISPLAY_MS = 1200;
   const ACTION_LABELS = {
     pass: '结束行动',
     pass_purchase: '结束购牌',
@@ -119,6 +127,114 @@
     gain.connect(context.destination);
     oscillator.start(now);
     oscillator.stop(now + .15);
+  }
+  function playPhaseCue() {
+    const context = state.audioContext;
+    if (!context || context.state !== 'running') return;
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(520, now);
+    oscillator.frequency.exponentialRampToValueAtTime(780, now + .16);
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(.1, now + .015);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + .2);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + .21);
+  }
+  function nextPhaseNoticeId() {
+    const sequence = state.game?.seq ?? state.snapshot?.seq ?? 'local';
+    const id = `${sequence}:${state.phaseNoticeCounter}`;
+    state.phaseNoticeCounter += 1;
+    return id;
+  }
+  function makePhaseNotice(phase, initial = false) {
+    return { id: nextPhaseNoticeId(), kind: 'phase', phase, initial };
+  }
+  function productionOutputNotices(after) {
+    const viewerId = after.players[0]?.id;
+    const snapshot = Engine.snapshot(after, viewerId, window.CONFIG_312);
+    return snapshot.board
+      .filter((tile) => tile.owner?.startsWith('p') && (tile.kind === 'hq' || tile.building))
+      .filter((tile) => Object.values(tile.production || {}).some((amount) => amount > 0))
+      .map((tile) => {
+        const player = after.players.find((candidate) => candidate.id === tile.owner);
+        return {
+          id: nextPhaseNoticeId(),
+          kind: 'production',
+          phase: 'production',
+          seat: player?.seat || null,
+          label: tile.kind === 'hq' ? '总部' : cardDescription(tile.building).label,
+          output: productionNoticeOutput(tile.production),
+        };
+      });
+  }
+  function noticesForAdvance(before, after) {
+    const notices = [];
+    if (before.phase === 'production' && after.phase === 'purchase') notices.push(...productionOutputNotices(after));
+    if (before.phase !== after.phase) notices.push(makePhaseNotice(after.phase));
+    return notices;
+  }
+  function renderPhaseTransition(notice) {
+    const banner = $('phase-transition-banner');
+    if (!banner) return;
+    const label = $('phase-transition-label');
+    const detail = $('phase-transition-detail');
+    const phaseNumber = PHASE_ORDER.indexOf(notice.phase) + 1;
+    const details = {
+      exploration: '发现地图与事件',
+      production: '结算总部与建筑资源',
+      purchase: '选择明牌、盲牌，或结束购牌',
+      action: '建设、派遣、部署与招募',
+      combat: '同时结算战斗结果',
+      black: '黑色势力扩张与行动',
+      ended: state.snapshot?.outcome?.status === 'win' ? '共同胜利' : '共同结果与排名',
+    };
+    const isProduction = notice.kind === 'production';
+    label.textContent = isProduction
+      ? `${String(phaseNumber).padStart(2, '0')} / 产出`
+      : `${String(phaseNumber).padStart(2, '0')} / ${formatPhase(notice.phase)}`;
+    detail.textContent = isProduction
+      ? `P${notice.seat || '—'} · ${notice.label}｜${notice.output}`
+      : details[notice.phase] || '阶段同步';
+    banner.hidden = false;
+    banner.dataset.phase = isProduction ? 'production-output' : notice.phase;
+    banner.classList.remove('is-visible');
+    void banner.offsetWidth;
+    banner.classList.add('is-visible');
+    if (!isProduction && !notice.initial) playPhaseCue();
+  }
+  function playNextPhaseNotice() {
+    if (state.phaseNoticePlaying) return;
+    const notice = state.phaseNoticeQueue.shift();
+    if (!notice) {
+      state.phaseNoticePlaying = false;
+      if (state.snapshot) renderActions(state.snapshot.legalActions || []);
+      return;
+    }
+    state.phaseNoticePlaying = true;
+    renderPhaseTransition(notice);
+    if (state.phaseBannerTimer) clearTimeout(state.phaseBannerTimer);
+    const duration = notice.kind === 'production' ? 700 : PHASE_DISPLAY_MS;
+    state.phaseBannerTimer = setTimeout(() => {
+      const banner = $('phase-transition-banner');
+      if (banner) {
+        banner.classList.remove('is-visible');
+        banner.hidden = true;
+      }
+      state.phaseNoticePlaying = false;
+      playNextPhaseNotice();
+    }, duration);
+  }
+  function enqueuePhaseNotices(snapshot, notices) {
+    const fresh = (notices || []).filter((notice) => notice?.id && !state.phaseNoticeSeen.has(notice.id));
+    if (!fresh.length) return;
+    fresh.forEach((notice) => state.phaseNoticeSeen.add(notice.id));
+    state.phaseNoticeQueue.push(...fresh);
+    playNextPhaseNotice();
   }
   function notifyTurn(snapshot, previousActiveSeat) {
     if (state.mode !== 'player' || previousActiveSeat === null || previousActiveSeat === snapshot.activeSeat) return;
@@ -221,6 +337,11 @@
   function tileProductionLabel(production = {}) {
     const output = Object.entries(production).filter(([, amount]) => amount);
     return output.length ? output.map(([resource, amount]) => `+${amount}${RESOURCE_SHORT_LABELS[resource] || resource}`).join(' / ') : '无产出';
+  }
+
+  function productionNoticeOutput(production = {}) {
+    const output = Object.entries(production).filter(([, amount]) => amount);
+    return output.length ? output.map(([resource, amount]) => `+${amount} ${RESOURCE_SHORT_LABELS[resource] || resource}`).join(' / ') : '无产出';
   }
 
   function tileProductionEffect(resource, amount) {
@@ -685,6 +806,12 @@
       return;
     }
     const market = $('purchase-market');
+    const purchaseControls = panel.querySelector('.purchase-controls');
+    const me = snapshot.players.find((player) => player.id === state.enginePlayerId);
+    const active = snapshot.players.find((player) => player.seat === snapshot.activeSeat);
+    const isMyTurn = me?.seat === snapshot.activeSeat;
+    const canAct = isMyTurn && !state.phaseNoticePlaying && state.phaseNoticeQueue.length === 0;
+    const purchase = me?.purchase || { faceUp: 0, blind: 0 };
     const faceUpActions = new Map(actions.filter((action) => action.type === 'purchase_face_up').map((action) => [action.card, action]));
     const faceUpCards = snapshot.market?.faceUp || [];
     const currentSelectedCard = Number.isInteger(state.selectedPurchaseSlot) ? faceUpCards[state.selectedPurchaseSlot] : null;
@@ -707,32 +834,41 @@
     market.replaceChildren(...faceUpCards.map((card, index) => {
       const item = document.createElement('button');
       item.type = 'button';
-      item.className = `card-chip purchase-market-card${state.selectedPurchaseSlot === index ? ' is-selected' : ''}`;
       item.dataset.purchaseSlot = String(index);
       item.dataset.purchaseCard = card;
-      item.disabled = !faceUpActions.has(card);
+      item.disabled = state.phaseNoticePlaying || state.phaseNoticeQueue.length > 0 || !faceUpActions.has(card);
       item.setAttribute('aria-pressed', String(state.selectedPurchaseSlot === index));
       item.setAttribute('aria-label', `${cardDescription(card).label}，${item.disabled ? '当前不可购买' : '选择后确认购买'}`);
       renderCardDetail(item, card);
       item.classList.add('purchase-market-card');
+      item.classList.toggle('is-selected', state.selectedPurchaseSlot === index);
       item.addEventListener('click', () => purchaseHandlers.selectSlot(index));
       return item;
     }));
     const selectedCardIndex = state.selectedPurchaseSlot;
     const selectedCard = Number.isInteger(selectedCardIndex) ? faceUpCards[selectedCardIndex] : null;
-    const selectedDescription = selectedCard ? cardDescription(selectedCard) : null;
-    $('purchase-selection-status').textContent = selectedDescription
-      ? `已选：${selectedDescription.label}，点击“购买所选”确认`
-      : '请选择一张明牌';
+    $('purchase-selection-status').textContent = state.phaseNoticePlaying || state.phaseNoticeQueue.length
+      ? '阶段提示播放中，请稍候'
+      : !isMyTurn
+      ? `等待 P${active?.seat || '—'} 结束购牌后轮到你`
+      : purchase.faceUp > 0 && purchase.blind > 0
+        ? '已购买明牌和盲牌；请点击“结束购牌”交给下一位玩家'
+        : purchase.faceUp > 0
+          ? '已购买明牌；还可购买 1 张盲牌，或点击“结束购牌”交给下一位玩家'
+          : purchase.blind > 0
+            ? '已购买盲牌；还可购买 1 张明牌，或点击“结束购牌”交给下一位玩家'
+            : '请选择一张明牌，或购买一张盲牌';
     const confirm = $('purchase-confirm');
-    confirm.disabled = !selectedCard || !faceUpActions.has(selectedCard);
+    confirm.disabled = !canAct || purchase.faceUp > 0 || !selectedCard || !faceUpActions.has(selectedCard);
     confirm.onclick = () => void purchaseHandlers.confirm();
     const random = $('purchase-random');
-    random.disabled = !actions.some((action) => action.type === 'purchase_blind');
+    random.disabled = !canAct || purchase.blind > 0 || !actions.some((action) => action.type === 'purchase_blind');
     random.onclick = () => void purchaseHandlers.random();
     const pass = $('purchase-pass');
-    pass.disabled = !actions.some((action) => action.type === 'pass_purchase');
+    pass.disabled = !canAct || !actions.some((action) => action.type === 'pass_purchase');
+    pass.className = canAct ? 'primary-button' : 'secondary-button';
     pass.onclick = () => void purchaseHandlers.pass();
+    purchaseControls.hidden = !canAct;
   }
 
   function renderActions(actions) {
@@ -751,6 +887,7 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'action-button';
+      button.disabled = state.phaseNoticePlaying || state.phaseNoticeQueue.length > 0;
       button.dataset.actionType = action.type;
       const label = document.createElement('span');
       label.className = 'action-type';
@@ -821,11 +958,17 @@
     outcome.textContent = `${title}${reason}　${ranking}`;
   }
 
-  function renderSnapshot(snapshot) {
+  function renderSnapshot(snapshot, phaseNotices = undefined) {
     if (!snapshot) return;
     const previousActiveSeat = state.lastActiveSeat;
+    const previousPhase = state.lastPhase;
     state.snapshot = snapshot;
     state.lastActiveSeat = snapshot.activeSeat;
+    state.lastPhase = snapshot.phase;
+    const notices = phaseNotices === undefined
+      ? (previousPhase === null || previousPhase !== snapshot.phase ? [{ id: `local:${snapshot.seq}:${snapshot.phase}`, kind: 'phase', phase: snapshot.phase, initial: previousPhase === null }] : [])
+      : phaseNotices;
+    enqueuePhaseNotices(snapshot, notices);
     if (state.mode === 'player') {
       setStatus(`已同步 · 房间 ${state.room || '—'} · 序号 ${snapshot.seq}`);
     }
@@ -894,7 +1037,10 @@
           to: playerId,
           requestId: target && playerId === target ? requestId : undefined,
           seq: state.game.seq,
-          payload: { snapshot: Engine.snapshot(state.game, player?.engineId || playerId) },
+          payload: {
+            snapshot: Engine.snapshot(state.game, player?.engineId || playerId),
+            phaseNotices: state.phaseNotices || [],
+          },
         }));
       } catch (error) {
         failures.push({ playerId, error });
@@ -941,16 +1087,21 @@
   }
 
   function settleHostAutomatic() {
+    const notices = [];
     while (state.game && !state.game.result && ['exploration', 'production', 'combat', 'black'].includes(state.game.phase)) {
+      const before = state.game;
       state.game = Engine.advance(state.game);
+      notices.push(...noticesForAdvance(before, state.game));
     }
+    return notices;
   }
 
-  function startGameAfterAllSeats() {
+  async function startGameAfterAllSeats() {
     if (state.started || !state.roomState || state.roomState.players.size !== Room.PLAYER_COUNT) return false;
     state.started = true;
-    settleHostAutomatic();
+    state.phaseNotices = [makePhaseNotice(state.game.phase, true), ...settleHostAutomatic()];
     renderHostLog(state.game);
+    await broadcastState();
     setStatus('四席已入座，对局开始');
     return true;
   }
@@ -969,7 +1120,7 @@
     }
     try {
       state.game = Engine.applyCommand(state.game, { seq: command.seq, playerId: player.engineId, action: command.action }).state;
-      settleHostAutomatic();
+      state.phaseNotices = settleHostAutomatic();
       renderHostLog(state.game);
       await sendRoster();
       await broadcastState();
@@ -987,7 +1138,7 @@
       return;
     }
     await sendRoster(message.from);
-    const startedNow = startGameAfterAllSeats();
+    const startedNow = await startGameAfterAllSeats();
     if (!state.started) {
       await sendWaiting(message.from, message.requestId);
       publishDebug();
@@ -1034,6 +1185,21 @@
     state.debugChannel = null;
   }
 
+  function resetPhaseNotices() {
+    if (state.phaseBannerTimer) clearTimeout(state.phaseBannerTimer);
+    state.phaseBannerTimer = null;
+    state.phaseNoticeCounter = 0;
+    state.phaseNoticeSeen = new Set();
+    state.phaseNoticeQueue = [];
+    state.phaseNoticePlaying = false;
+    state.phaseNotices = [];
+    const banner = $('phase-transition-banner');
+    if (banner) {
+      banner.classList.remove('is-visible');
+      banner.hidden = true;
+    }
+  }
+
   function clearRoomState() {
     state.hostId = null;
     state.clientId = null;
@@ -1044,7 +1210,9 @@
     state.started = false;
     state.snapshot = null;
     state.lastActiveSeat = null;
+    state.lastPhase = null;
     state.selectedPurchaseSlot = null;
+    resetPhaseNotices();
     $('entry').hidden = false;
     $('room-panel').hidden = true;
     $('game-panel').hidden = true;
@@ -1082,7 +1250,9 @@
       state.enginePlayerId = 'p1';
       state.started = false;
       state.lastActiveSeat = null;
+      state.lastPhase = null;
       state.selectedPurchaseSlot = null;
+      resetPhaseNotices();
       state.room = roomCode();
       state.roomState = Room.createRoomState({ room: state.room, hostId: state.hostId, invites: Room.createInvites(['P1', 'P2', 'P3', 'P4']) });
       state.game = Engine.createGame({ seed: Date.now(), players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
@@ -1126,7 +1296,9 @@
       state.game = null;
       state.started = false;
       state.lastActiveSeat = null;
+      state.lastPhase = null;
       state.selectedPurchaseSlot = null;
+      resetPhaseNotices();
       $('game-panel').hidden = true;
       $('game-session-meta').hidden = true;
       document.body.classList.remove('is-game-active');
@@ -1142,7 +1314,7 @@
         config,
         handlers: {
           roster: (message) => renderRoster(message.payload?.players || []),
-          state: (message) => renderSnapshot(message.payload?.snapshot),
+          state: (message) => renderSnapshot(message.payload?.snapshot, message.payload?.phaseNotices),
           reject: (message) => setError(message.payload?.reason || '请求被主机拒绝'),
         },
       });
@@ -1233,6 +1405,7 @@
       state.clientId = id();
       state.enginePlayerId = 'p1';
       state.lastActiveSeat = null;
+      resetPhaseNotices();
       state.selectedPurchaseSlot = null;
       state.room = null;
       state.roomState = null;
@@ -1262,6 +1435,7 @@
 
   async function submitAction(action) {
     if (!state.snapshot) return;
+    if (state.phaseNoticePlaying || state.phaseNoticeQueue.length > 0) return;
     if (state.mode === 'simulation') {
       try {
         state.game = Engine.applyCommand(state.game, { seq: state.snapshot.seq, playerId: state.enginePlayerId, action }).state;
@@ -1296,7 +1470,7 @@
         try {
           const player = state.game.players.find((candidate) => candidate.seat === data.seat);
           state.game = Engine.applyCommand(state.game, { seq: data.seq, playerId: player.id, action: data.action }).state;
-          settleHostAutomatic();
+          state.phaseNotices = settleHostAutomatic();
           renderHostLog(state.game);
           await broadcastState();
         } catch (error) { state.debugChannel.postMessage({ type: 'debug_error', message: error.message }); }

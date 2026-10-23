@@ -74,7 +74,9 @@ test('initial state is deterministic and snapshots hide another player hand', ()
   assert.ok(first.players[0].hand.length > 0);
   const viewer = Engine.snapshot(first, 'p1');
   assert.deepEqual(viewer.players.find((p) => p.id === 'p1').hand, first.players[0].hand);
+  assert.deepEqual(viewer.players.find((p) => p.id === 'p1').purchase, first.players[0].purchase);
   assert.equal('hand' in viewer.players.find((p) => p.id === 'p2'), false);
+  assert.equal('purchase' in viewer.players.find((p) => p.id === 'p2'), false);
   const farm = setControlledTile(first, 'p1', [1, 1], { militia: 1, guard: 1 });
   farm.building = 'farm';
   const farmSnapshot = Engine.snapshot(first, 'p1').board.find((candidate) => candidate.coord.join(',') === '1,1');
@@ -112,6 +114,18 @@ test('purchase has no AP cost and caps one face-up plus one blind card per seat'
   state = command(state, 'p1', { type: 'purchase_blind' });
   assert.equal(state.players[0].ap, before);
   assert.throws(() => command(state, 'p1', { type: 'purchase_blind' }), /blind purchase limit/);
+});
+
+test('purchase keeps the seat active until it ends purchase, then the next player can buy', () => {
+  let state = Engine.advance(Engine.advance(freshGame()));
+  state = command(state, 'p1', { type: 'purchase_face_up', card: state.market.faceUp[0] });
+  assert.equal(state.activeSeat, 1);
+  state = command(state, 'p1', { type: 'purchase_blind' });
+  assert.equal(state.activeSeat, 1);
+  state = command(state, 'p1', { type: 'pass_purchase' });
+  assert.equal(state.activeSeat, 2);
+  state = command(state, 'p2', { type: 'purchase_face_up', card: state.market.faceUp[0] });
+  assert.equal(state.activeSeat, 2);
 });
 
 test('action phase is P1-to-P4 round robin rather than one seat spending all AP', () => {
