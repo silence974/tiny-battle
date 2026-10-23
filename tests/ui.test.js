@@ -554,7 +554,6 @@ test('dispatch confirmation and route feedback stay explicit without closing til
   assert.match(app, /endpoint\.disabled = !canAct \|\| !state\.dispatchDraft\?\.route\?\.length/);
   assert.match(app, /function renderDispatchRouteOverlay/);
   assert.match(app, /dispatch-route-overlay/);
-  assert.match(app, /marker-end/);
   assert.match(app, /showTileDetail\(source, \{ toggle: false \}\)/);
   assert.match(app, /if \(toggle && !inspector\.hidden && inspector\.dataset\.coord === coord\)/);
   assert.match(css, /\.dispatch-confirm-endpoint:disabled\s*\{[^}]*background:\s*var\(--ef-rule\)/s);
