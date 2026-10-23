@@ -93,7 +93,7 @@ test('advance follows exploration, production, purchase, action, combat, and bla
   assert.equal(state.phase, 'purchase');
   for (const player of PLAYERS) state = command(state, player.id, { type: 'pass_purchase' });
   assert.equal(state.phase, 'action');
-  for (let i = 0; i < 12; i += 1) {
+  while (state.phase === 'action') {
     const active = state.players.find((p) => p.seat === state.activeSeat);
     state = command(state, active.id, { type: 'pass' });
   }
@@ -133,13 +133,33 @@ test('action phase is P1-to-P4 round robin rather than one seat spending all AP'
   state = command(state, 'p1', { type: 'pass' });
   assert.equal(state.activeSeat, 2);
   assert.equal(state.players[0].ap, 2);
+  assert.equal(state.players[0].passed, true);
   state = command(state, 'p2', { type: 'pass' });
   assert.equal(state.activeSeat, 3);
   assert.equal(state.players[1].ap, 2);
   state = command(state, 'p3', { type: 'pass' });
   state = command(state, 'p4', { type: 'pass' });
-  assert.equal(state.activeSeat, 1);
-  assert.equal(state.players[0].ap, 2);
+  assert.equal(state.phase, 'combat');
+  assert.equal(state.players[0].passed, true);
+});
+
+test('action pass persists through the phase and skips that player on later turns', () => {
+  let state = stageAction(freshGame());
+  setControlledTile(state, 'p2', [0, 5]);
+  const target = tile(state, [1, 6]);
+  target.kind = 'land';
+  target.explored = true;
+  target.owner = null;
+  target.garrison = { militia: 0, guard: 0 };
+  target.building = null;
+  state = command(state, 'p1', { type: 'pass' });
+  state = command(state, 'p2', { type: 'build', at: [1, 6], building: 'farm' });
+  state = command(state, 'p3', { type: 'pass' });
+  state = command(state, 'p4', { type: 'pass' });
+  assert.equal(state.activeSeat, 2);
+  assert.equal(state.players[0].passed, true);
+  assert.equal(Engine.legalActions(state, 'p1').length, 0);
+  assert.equal(Engine.snapshot(state, 'p3').players.find((player) => player.id === 'p1').passed, true);
 });
 
 test('build legality requires an explored empty tile adjacent to controlled territory', () => {

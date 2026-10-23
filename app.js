@@ -1253,7 +1253,8 @@
       const player = bySeat.get(seat);
       const card = document.createElement('article');
       const activeClass = ended ? '' : (player && player.seat === activeSeat ? ' is-active' : '');
-      card.className = `player-roster-card seat-color-p${seat}${activeClass}`;
+      const passedClass = !ended && player?.passed ? ' is-passed' : '';
+      card.className = `player-roster-card seat-color-p${seat}${activeClass}${passedClass}`;
       card.dataset.seat = String(seat);
       const heading = document.createElement('div');
       heading.className = 'player-roster-heading';
@@ -1267,7 +1268,7 @@
       const rankingEntry = player && rankingByPlayer.get(player.id);
       status.textContent = ended
         ? (rankingEntry ? `第${rankingEntry.rank}名` : '已结束')
-        : (player ? (player.seat === activeSeat ? '当前行动' : '已入座') : '等待加入');
+        : (player ? (player.passed ? 'PASS' : player.seat === activeSeat ? '当前行动' : '已入座') : '等待加入');
       const identityWrap = document.createElement('span');
       identityWrap.className = 'player-roster-identity';
       identityWrap.append(order, identity);
@@ -1573,12 +1574,12 @@
     }
     if (state.actionMode === 'recruit') renderRecruitPanel(actionsPanel, actions, canAct);
     if (state.actionMode) {
-      const abandon = document.createElement('button');
-      abandon.type = 'button';
-      abandon.className = 'secondary-button';
-      abandon.textContent = '放弃';
-      abandon.onclick = () => clearActionSelection();
-      actionsPanel.append(abandon);
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'secondary-button';
+      cancel.textContent = '取消';
+      cancel.onclick = () => clearActionSelection();
+      actionsPanel.append(cancel);
     }
     const passAction = actions.find((action) => action.type === 'pass');
     actionPass.hidden = !passAction;

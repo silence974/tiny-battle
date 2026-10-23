@@ -377,6 +377,7 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .player-roster-heading strong { overflow: hidden; color: var(--seat-ink); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
 .player-roster-status { flex: 0 0 auto; color: var(--ef-ink-2); font-size: .6rem; }
 .player-roster-card.is-active .player-roster-status { color: var(--ef-ink); font-weight: 800; }
+.player-roster-card.is-passed .player-roster-status { color: var(--ef-ink-2); font-family: "Saira", sans-serif; font-weight: 850; letter-spacing: .06em; }
 .player-roster-card.is-active .player-order-index,
 .player-roster-card.is-active .player-roster-heading strong,
 .player-roster-card.is-active .player-roster-score { color: var(--ef-ink); }

@@ -267,6 +267,7 @@ function snapshot(input, viewerId, config = DEFAULT_CONFIG) {
         resources: clone(player.resources),
         reserve: clone(player.reserve),
         ap: player.ap,
+        passed: player.passed,
         score: player.score,
         scoreBreakdown: clone(player.scoreBreakdown),
       };
@@ -420,14 +421,15 @@ function completePurchase(state) {
 
 function nextActive(state) {
   const current = state.activeSeat;
-  state.activeSeat = current === 4 ? 1 : current + 1;
-}
-
-function resetActionCycle(state) {
-  for (const player of state.players) {
-    if (player.ap > 0) player.passed = false;
+  for (let offset = 1; offset <= state.players.length; offset += 1) {
+    const seat = ((current - 1 + offset) % state.players.length) + 1;
+    const candidate = state.players.find((player) => player.seat === seat);
+    if (candidate && candidate.ap > 0 && !candidate.passed) {
+      state.activeSeat = candidate.seat;
+      return;
+    }
   }
-  state.activeSeat = 1;
+  state.phase = 'combat';
 }
 
 function actionCycleComplete(state) {
@@ -520,11 +522,8 @@ function applyCommand(input, command, config = DEFAULT_CONFIG) {
       player.ap -= 1;
     } else assert(false, `unknown action: ${action.type}`);
 
-    if (actionCycleComplete(state)) {
-      if (state.players.every((candidate) => candidate.ap <= 0)) {
-        state.phase = 'combat';
-      } else resetActionCycle(state);
-    } else nextActive(state);
+    if (actionCycleComplete(state)) state.phase = 'combat';
+    else nextActive(state);
   }
 
   state.seq += 1;

@@ -96,8 +96,10 @@ Each round progresses in this order:
    phase costs no AP and refills the face-up market immediately.
 4. `action`: players act in round-robin seat order. Each pass through P1→P4
    gives each non-passed seat one action, and rounds repeat until every seat
-   has spent all three AP or passed. A seat never spends all three AP before
-   the other seats get their turn. Purchase is not legal here, but cards
+   has spent all three AP or passed. `pass` is sticky until the action phase
+   ends; a passed seat is automatically skipped when its turn would recur and
+   remains marked `PASS` in every player view. A seat never spends all three AP
+   before the other seats get their turn. Purchase is not legal here, but cards
    bought earlier in the same round may be built during this phase.
 5. `combat`: all attacks created during the action phase resolve together;
    ties, empty defenders, and displacement follow the 312 rules.

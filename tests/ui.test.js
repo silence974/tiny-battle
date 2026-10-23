@@ -505,14 +505,16 @@ test('action phase keeps build, dispatch, and recruit entries visible when unava
   assert.match(app, /button\.disabled = !canAct \|\| !group\.actions\.length/);
   assert.match(app, /actionMode = group\.type/);
   assert.doesNotMatch(app, /actionMode = state\.actionMode === group\.type \? null : group\.type/);
-  assert.match(app, /abandon\.className = 'secondary-button'/);
-  assert.match(app, /textContent = '放弃'/);
+  assert.match(app, /cancel\.className = 'secondary-button'/);
+  assert.match(app, /textContent = '取消'/);
   assert.match(app, /clearDispatchDraft\(\{ refresh: false \}\)/);
   assert.match(app, /state\.recruitDraft = null/);
   assert.match(app, /actionPass\.textContent = '跳过'/);
   assert.match(app, /actionPass\.setAttribute\('aria-label', '跳过本轮行动'\)/);
   assert.match(app, /if \(accepted\) clearActionSelection\(\)/);
   assert.match(app, /if \(!canAct && \(state\.actionMode \|\| state\.buildDraft \|\| state\.dispatchDraft \|\| state\.recruitDraft\)\)/);
+  assert.match(app, /status\.textContent = ended[\s\S]*player\.passed \? 'PASS'/);
+  assert.match(app, /player\?\.passed/);
   assert.match(css, /\.action-entry:disabled\s*\{[^}]*background:\s*var\(--ef-rule\)[^}]*opacity:\s*\.55/s);
 });
 
@@ -522,6 +524,13 @@ test('action skip uses the short label and clears the action selection contract'
   assert.match(html, /id=["']action-pass["'][^>]*aria-label=["']跳过本轮行动["'][^>]*>跳过</);
   assert.match(app, /pass: '跳过'/);
   assert.doesNotMatch(app, /pass: '结束行动'/);
+});
+
+test('action cancel stays local while pass is the phase-level skip', () => {
+  const app = read('app.js');
+  assert.match(app, /textContent = '取消'/);
+  assert.match(app, /actionPass\.textContent = '跳过'/);
+  assert.match(app, /player\.passed \? 'PASS'/);
 });
 
 test('build interaction uses one pending draft across tile-first and drag-first paths', () => {
