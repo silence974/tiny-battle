@@ -579,7 +579,9 @@
     if (tile.building) return cardDescription(tile.building).label;
     if (tile.kind === 'black_hq') return '黑色总部';
     if (tile.kind === 'hq') return '总部';
-    return tile.explored ? tileOwnerLabel(tile) : '未知地块';
+    if (tile.kind === 'black') return '黑色区域';
+    if (tile.kind === 'land') return '空地';
+    return tile.explored ? '已探索地块' : '未知地块';
   }
 
   function tileInspectorPoints(tile) {
@@ -650,12 +652,9 @@
         label.textContent = forceGroupLabel(group);
         const body = document.createElement('div');
         body.className = 'force-detail-group-body';
-        const groupControls = document.createElement('div');
-        groupControls.className = 'force-detail-group-controls';
         const canAdjust = group.playerId === state.enginePlayerId
           && state.actionMode === 'dispatch'
           && dispatchCanTake(tile.coord);
-        groupControls.hidden = !canAdjust;
         const forceEntries = Object.entries(group.forces || {}).filter(([, count]) => Number(count) > 0);
         forceEntries.forEach(([unit, count]) => {
           const line = document.createElement('div');
@@ -700,15 +699,14 @@
             plus.onclick = () => changeDispatchForce(tile.coord, unit, 1);
             controls.append(minus, plus);
           }
-          line.append(copy, quantity);
+          line.append(copy, quantity, controls);
           body.append(line);
-          groupControls.append(controls);
         });
         const total = document.createElement('small');
         total.className = 'force-detail-group-total';
         total.textContent = `总计　人数 ${group.count}　战力 ${group.power}　产能 ${group.capacity}`;
         body.append(total);
-        groupNode.append(label, body, groupControls);
+        groupNode.append(label, body);
         forcesPanel.append(groupNode);
       });
     }
@@ -1169,42 +1167,62 @@
       const tile = [...board.querySelectorAll('.tile')].find((candidate) => candidate.dataset.coord === coordKey(coord));
       if (!tile) return null;
       const rect = tile.getBoundingClientRect();
-      return `${rect.left - boardRect.left + rect.width / 2},${rect.top - boardRect.top + rect.height / 2}`;
+      return {
+        x: rect.left - boardRect.left + rect.width / 2,
+        y: rect.top - boardRect.top + rect.height / 2,
+      };
     }).filter(Boolean);
     if (points.length < 2) return;
+    const svgNamespace = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.classList.add('dispatch-route-overlay');
     svg.setAttribute('viewBox', `0 0 ${Math.max(1, boardRect.width)} ${Math.max(1, boardRect.height)}`);
     svg.setAttribute('aria-hidden', 'true');
-    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
-    marker.id = 'dispatch-route-arrow';
-    marker.setAttribute('markerWidth', '8');
-    marker.setAttribute('markerHeight', '8');
-    marker.setAttribute('refX', '7');
-    marker.setAttribute('refY', '4');
-    marker.setAttribute('orient', 'auto');
-    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    arrow.setAttribute('d', 'M 0 0 L 8 4 L 0 8 z');
-    arrow.setAttribute('fill', '#f6e14f');
-    marker.append(arrow);
-    defs.append(marker);
-    const outer = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    outer.setAttribute('points', points.join(' '));
-    outer.setAttribute('fill', 'none');
-    outer.setAttribute('stroke', '#161616');
-    outer.setAttribute('stroke-width', '10');
-    outer.setAttribute('stroke-linecap', 'round');
-    outer.setAttribute('stroke-linejoin', 'round');
-    const inner = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    inner.setAttribute('points', points.join(' '));
-    inner.setAttribute('fill', 'none');
-    inner.setAttribute('stroke', '#f6e14f');
-    inner.setAttribute('stroke-width', '4');
-    inner.setAttribute('stroke-linecap', 'round');
-    inner.setAttribute('stroke-linejoin', 'round');
-    inner.setAttribute('marker-end', 'url(#dispatch-route-arrow)');
-    svg.append(defs, outer, inner);
+    const routePath = points.map((point, index) => `${index ? 'L' : 'M'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+    for (const className of ['dispatch-route-clearance', 'dispatch-route-ink', 'dispatch-route-signal']) {
+      const path = document.createElementNS(svgNamespace, 'path');
+      path.classList.add(className);
+      path.setAttribute('d', routePath);
+      svg.append(path);
+    }
+    const addSquareNode = (point, className, size) => {
+      const node = document.createElementNS(svgNamespace, 'rect');
+      node.classList.add(className);
+      node.setAttribute('x', String(point.x - size / 2));
+      node.setAttribute('y', String(point.y - size / 2));
+      node.setAttribute('width', String(size));
+      node.setAttribute('height', String(size));
+      svg.append(node);
+    };
+    addSquareNode(points[0], 'dispatch-route-start', 18);
+    addSquareNode(points[0], 'dispatch-route-start-core', 7);
+    for (let index = 1; index < points.length - 1; index += 1) {
+      const previous = points[index - 1];
+      const current = points[index];
+      const next = points[index + 1];
+      const enteredHorizontally = Math.abs(current.x - previous.x) > Math.abs(current.y - previous.y);
+      const exitsHorizontally = Math.abs(next.x - current.x) > Math.abs(next.y - current.y);
+      if (enteredHorizontally === exitsHorizontally) continue;
+      addSquareNode(current, 'dispatch-route-bend', 12);
+      addSquareNode(current, 'dispatch-route-bend-core', 5);
+    }
+    const end = points[points.length - 1];
+    const beforeEnd = points[points.length - 2];
+    const deltaX = end.x - beforeEnd.x;
+    const deltaY = end.y - beforeEnd.y;
+    const axisLength = Math.max(Math.abs(deltaX), Math.abs(deltaY), 1);
+    const direction = { x: deltaX / axisLength, y: deltaY / axisLength };
+    const perpendicular = { x: -direction.y, y: direction.x };
+    const tip = { x: end.x + direction.x * 16, y: end.y + direction.y * 16 };
+    const base = { x: end.x - direction.x * 8, y: end.y - direction.y * 8 };
+    const arrow = document.createElementNS(svgNamespace, 'polygon');
+    arrow.classList.add('dispatch-route-arrow');
+    arrow.setAttribute('points', [
+      `${tip.x},${tip.y}`,
+      `${base.x + perpendicular.x * 11},${base.y + perpendicular.y * 11}`,
+      `${base.x - perpendicular.x * 11},${base.y - perpendicular.y * 11}`,
+    ].join(' '));
+    svg.append(arrow);
     board.append(svg);
   }
 

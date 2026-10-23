@@ -147,11 +147,11 @@ test('garrison details show only staffed unit types with structured metadata', (
   assert.match(detail, /force-detail-line/);
   assert.match(detail, /forceGroups/);
   assert.match(detail, /force-detail-group-label/);
-  assert.match(detail, /groupNode\.append\(label, body, groupControls\)/);
-  assert.match(detail, /line\.append\(copy, quantity\)/);
+  assert.match(detail, /groupNode\.append\(label, body\)/);
+  assert.match(detail, /line\.append\(copy, quantity, controls\)/);
   assert.match(css, /\.force-detail-group\s*\{[^}]*position:\s*relative/);
   assert.match(css, /\.force-detail-group-label\s*\{[^}]*position:\s*absolute[^}]*white-space:\s*nowrap/s);
-  assert.match(css, /\.force-detail-group-controls\s*\{[^}]*position:\s*absolute[^}]*transform:\s*translateX/s);
+  assert.doesNotMatch(detail, /force-detail-group-controls/);
   assert.match(css, /\.tile-inspector-forces\s*\{[^}]*overflow:\s*visible/s);
   assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/s);
 });
@@ -161,7 +161,14 @@ test('garrison groups use the same-width card as the inspector without an outer 
   const forcesRule = css.match(/\.tile-inspector-forces\s*\{([^}]*)\}/s)?.[1] || '';
   assert.doesNotMatch(forcesRule, /\bborder\s*:/);
   assert.match(css, /\.force-detail-group\s*\{[^}]*margin:\s*\.35rem\s+0/s);
-  assert.match(css, /@media\s*\(max-width:\s*700px\)[\s\S]*?\.tile-inspector\s*\{[^}]*width:\s*min\(320px,\s*calc\(100vw\s*-\s*8rem\)\)/s);
+  assert.match(css, /@media\s*\(max-width:\s*700px\)[\s\S]*?\.tile-inspector\s*\{[^}]*width:\s*min\(320px,\s*calc\(100vw\s*-\s*9rem\)\)/s);
+});
+
+test('garrison adjustment controls have no shared wrapper frame and align as row controls', () => {
+  const css = read('styles.css');
+  assert.doesNotMatch(css, /\.force-detail-group-controls\s*\{/);
+  assert.match(css, /\.force-detail-line\s*\{[^}]*position:\s*relative/s);
+  assert.match(css, /\.force-detail-controls\s*\{[^}]*top:\s*50%[^}]*left:\s*calc\(100% \+ \.3rem\)[^}]*translateY\(-50%\)/s);
 });
 
 test('board tiles are square and expose an accessible snapshot detail inspector', () => {
@@ -558,7 +565,7 @@ test('dispatch confirmation and route feedback stay explicit without closing til
   assert.match(app, /if \(toggle && !inspector\.hidden && inspector\.dataset\.coord === coord\)/);
   assert.match(css, /\.dispatch-confirm-endpoint:disabled\s*\{[^}]*background:\s*var\(--ef-rule\)/s);
   assert.match(css, /\.dispatch-route-overlay\s*\{[^}]*pointer-events:\s*none/s);
-  assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto auto/s);
+  assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto/s);
 });
 
 test('action skip uses the short label and clears the action selection contract', () => {
