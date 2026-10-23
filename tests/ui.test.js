@@ -466,6 +466,75 @@ test('app renderer formats live resource cards and readable action labels', () =
   assert.match(app, /snapshot\.players/);
 });
 
+test('action phase exposes AP and reachable action type entries', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(html, /id=["']action-ap["']/);
+  assert.match(html, /id=["']action-pass["']/);
+  assert.match(app, /action-entry/);
+  assert.match(app, /window\.CONFIG_312\?\.start\?\.ap/);
+  assert.match(app, /action\.type === 'dispatch' \|\| action\.type === 'deploy'/);
+  assert.match(app, /action\.type === 'recruit'/);
+  assert.match(app, /actionPass\.hidden/);
+  assert.match(css, /\.action-entry\s*\{/);
+  assert.match(css, /\.action-ap-readout\s*\{/);
+});
+
+test('build interaction uses one pending draft across tile-first and drag-first paths', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(app, /buildDraft:\s*null/);
+  assert.match(app, /function chooseBuildTarget/);
+  assert.match(app, /function chooseBuildCard/);
+  assert.match(app, /function submitBuildDraft/);
+  assert.match(app, /state\.buildDraft = \{ building, at: \[\.\.\.coord\], action:/);
+  assert.match(app, /state\.buildDraft = \{\s*building: drag\.card,\s*at: coord,\s*action:/s);
+  assert.match(app, /addEventListener\('pointermove', updateBuildDrag/);
+  assert.match(app, /addEventListener\('pointerup', \(event\) => finishBuildDrag/);
+  assert.match(app, /addEventListener\('pointercancel', \(event\) => finishBuildDrag/);
+  assert.match(app, /id = 'build-confirm'/);
+  assert.match(app, /clearBuildDraft\(\)/);
+  assert.match(app, /item\.setAttribute\('aria-disabled', String\(item\.disabled\)\)/);
+  assert.match(app, /cell\.dataset\.coord = coordKey\(tile\.coord\)/);
+  assert.match(html, /id=["']phase-content-action["'][\s\S]*data-phase-actions=["']action["']/);
+  assert.match(css, /\.tile\.is-build-target\s*\{/);
+  assert.match(css, /\.tile-build-preview\s*\{/);
+  assert.match(css, /\.build-drag-ghost\s*\{/);
+});
+
+test('dispatch entry keeps deploy reachable and exposes route and force-selection states', () => {
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(app, /action\.type === 'dispatch' \|\| action\.type === 'deploy'/);
+  assert.match(app, /function handleDispatchTile/);
+  assert.match(app, /function dispatchNextCoords/);
+  assert.match(app, /function changeDispatchForce/);
+  assert.match(app, /id = 'dispatch-confirm-endpoint'/);
+  assert.match(app, /id = 'dispatch-confirm'/);
+  assert.match(app, /routeForces:/);
+  assert.match(app, /action\.type === 'deploy'/);
+  assert.match(app, /tile-dispatch-battle/);
+  assert.match(app, /dispatchEndpoint && !tile\.explored/);
+  assert.match(css, /\.tile\.is-dispatch-unavailable\s*\{/);
+  assert.match(css, /\.tile\.is-dispatch-route\s*\{/);
+  assert.match(css, /\.tile\.is-dispatch-battle\s*\{/);
+  assert.match(css, /\.force-detail-controls\s*\{/);
+});
+
+test('recruit entry supports one unit type and at most three units', () => {
+  const app = read('app.js');
+  const config = read('config-312.js');
+  const css = read('styles.css');
+  assert.match(config, /maxPerAction:\s*3/);
+  assert.match(app, /function renderRecruitPanel/);
+  assert.match(app, /最多|>= 3/);
+  assert.match(app, /id = 'recruit-confirm'/);
+  assert.match(css, /\.recruit-panel\s*\{/);
+  assert.match(css, /\.recruit-controls\s*\{/);
+});
+
 test('unified stylesheet defines the light board layout and responsive panels', () => {
   const css = read('styles.css');
   assert.match(css, /--color-primary/);

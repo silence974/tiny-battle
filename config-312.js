@@ -114,7 +114,7 @@ const CONFIG = {
     { minCapacity: 6, maxCapacity: 999, gold: 3, wood: 2, food: 0 },
   ],
   hqProduction: { gold: 1, wood: 1, food: 0 },
-  recruitment: { maxPerAction: 2, requireBarracks: true, requiresStationedUnit: true },
+  recruitment: { maxPerAction: 3, requireBarracks: true, requiresStationedUnit: true },
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = CONFIG;

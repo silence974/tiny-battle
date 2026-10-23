@@ -179,9 +179,11 @@ test('legal actions expose dispatch and recruiting, and recruitment stations uni
   let state = stageAction(freshGame());
   const barracks = setControlledTile(state, 'p1', [1, 0]);
   barracks.building = 'barracks';
+  state.players[0].resources.food = 3;
   const actions = Engine.legalActions(state, 'p1');
   assert.ok(actions.some((action) => action.type === 'dispatch'));
   assert.ok(actions.some((action) => action.type === 'recruit' && action.at.join(',') === '1,0'));
+  assert.ok(actions.some((action) => action.type === 'recruit' && action.at.join(',') === '1,0' && action.count === 3));
   assert.equal(actions.some((action) => action.type === 'deploy'), false);
   const before = { ...barracks.garrison };
   state = command(state, 'p1', { type: 'recruit', at: [1, 0], unit: 'militia', count: 1 });

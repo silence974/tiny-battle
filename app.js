@@ -59,6 +59,11 @@
     phaseNoticePlaying: false,
     phaseNotices: [],
     collapsedPhases: new Set(),
+    actionMode: null,
+    buildDraft: null,
+    buildDrag: null,
+    dispatchDraft: null,
+    recruitDraft: null,
   };
 
   const PHASE_LABELS = {
@@ -607,7 +612,27 @@
         quantity.className = 'force-detail-quantity';
         quantity.setAttribute('aria-label', `${UNIT_LABELS[unit] || unit}人数 ${count}`);
         quantity.textContent = `${count}人`;
-        row.append(copy, quantity);
+        if (state.actionMode === 'dispatch' && dispatchCanTake(tile.coord)) {
+          const controls = document.createElement('span');
+          controls.className = 'force-detail-controls';
+          const minus = document.createElement('button');
+          minus.type = 'button';
+          minus.className = 'force-detail-adjust';
+          minus.textContent = '−';
+          const selectedCount = state.dispatchDraft?.allocations?.[coordKey(tile.coord)]?.[unit] || 0;
+          minus.disabled = selectedCount <= 0;
+          minus.setAttribute('aria-label', `减少${UNIT_LABELS[unit] || unit}`);
+          minus.onclick = () => changeDispatchForce(tile.coord, unit, -1);
+          const plus = document.createElement('button');
+          plus.type = 'button';
+          plus.className = 'force-detail-adjust';
+          plus.textContent = '+';
+          plus.disabled = selectedCount >= (tile.garrison?.[unit] || 0);
+          plus.setAttribute('aria-label', `增加${UNIT_LABELS[unit] || unit}`);
+          plus.onclick = () => changeDispatchForce(tile.coord, unit, 1);
+          controls.append(minus, plus);
+          row.append(copy, quantity, controls);
+        } else row.append(copy, quantity);
         return row;
       });
       forcesPanel.append(...forceRows);
@@ -637,10 +662,392 @@
     inspector.hidden = false;
   }
 
+  function buildActions(actions = state.snapshot?.legalActions || []) {
+    return actions.filter((action) => action.type === 'build' && Array.isArray(action.at));
+  }
+
+  function coordKey(coord) {
+    return Array.isArray(coord) ? coord.join(',') : String(coord || '');
+  }
+
+  function buildActionFor(actions, building, at) {
+    return buildActions(actions).find((action) => action.building === building && coordKey(action.at) === coordKey(at)) || null;
+  }
+
+  function buildTargetActions(actions) {
+    const targets = new Map();
+    for (const action of buildActions(actions)) {
+      const key = coordKey(action.at);
+      if (!targets.has(key)) targets.set(key, []);
+      targets.get(key).push(action);
+    }
+    return targets;
+  }
+
+  function clearBuildDraft({ refresh = true } = {}) {
+    state.buildDraft = null;
+    if (state.buildDrag?.ghost) state.buildDrag.ghost.remove();
+    state.buildDrag = null;
+    if (refresh && state.snapshot) {
+      renderBoard(state.snapshot);
+      renderHandPage(state.hand);
+    }
+  }
+
+  function buildCanAct() {
+    const snapshot = state.snapshot;
+    const me = snapshot?.players?.find((player) => player.id === state.enginePlayerId) || snapshot?.players?.[0];
+    return snapshot?.phase === 'action'
+      && me?.seat === snapshot.activeSeat
+      && !state.phaseNoticePlaying
+      && state.phaseNoticeQueue.length === 0;
+  }
+
+  function renderBuildSurface(actions = state.snapshot?.legalActions || []) {
+    if (!state.snapshot) return;
+    renderBoard(state.snapshot);
+    renderHandPage(state.hand);
+    renderActions(actions);
+  }
+
+  function chooseBuildTarget(coord, actions = state.snapshot?.legalActions || []) {
+    if (!buildCanAct()) return false;
+    const targetActions = buildTargetActions(actions).get(coordKey(coord));
+    if (!targetActions?.length) return false;
+    const existing = state.buildDraft;
+    const building = existing?.at && coordKey(existing.at) === coordKey(coord) ? existing.building : null;
+    state.buildDraft = { building, at: [...coord], action: building ? buildActionFor(actions, building, coord) : null };
+    renderBuildSurface(actions);
+    return true;
+  }
+
+  function chooseBuildCard(card, actions = state.snapshot?.legalActions || []) {
+    if (!buildCanAct() || state.actionMode !== 'build' || !state.buildDraft?.at) return false;
+    const action = buildActionFor(actions, card, state.buildDraft.at);
+    if (!action) return false;
+    state.buildDraft = { building: card, at: [...state.buildDraft.at], action };
+    renderBuildSurface(actions);
+    return true;
+  }
+
+  function createBuildDragGhost(card) {
+    const ghost = document.createElement('div');
+    ghost.className = 'build-drag-ghost';
+    ghost.textContent = cardDescription(card).label;
+    document.body.append(ghost);
+    return ghost;
+  }
+
+  function buildTileAtPoint(event) {
+    const element = document.elementFromPoint(event.clientX, event.clientY);
+    return element?.closest?.('.tile') || null;
+  }
+
+  function updateBuildDrag(event) {
+    const drag = state.buildDrag;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.ghost) {
+      drag.ghost.style.left = `${event.clientX + 12}px`;
+      drag.ghost.style.top = `${event.clientY + 12}px`;
+    }
+    document.querySelectorAll('.tile.is-build-drag-over').forEach((tile) => tile.classList.remove('is-build-drag-over'));
+    const tile = buildTileAtPoint(event);
+    if (tile && buildTargetActions(state.snapshot?.legalActions || []).has(tile.dataset.coord)) {
+      tile.classList.add('is-build-drag-over');
+    }
+  }
+
+  function finishBuildDrag(event, cancelled = false) {
+    const drag = state.buildDrag;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const tile = cancelled ? null : buildTileAtPoint(event);
+    const coord = tile?.dataset.coord?.split(',').map(Number);
+    if (drag.ghost) drag.ghost.remove();
+    state.buildDrag = null;
+    document.querySelectorAll('.tile.is-build-drag-over').forEach((node) => node.classList.remove('is-build-drag-over'));
+    if (coord && buildTargetActions(state.snapshot?.legalActions || []).has(coordKey(coord))) {
+      state.buildDraft = {
+        building: drag.card,
+        at: coord,
+        action: buildActionFor(state.snapshot?.legalActions || [], drag.card, coord),
+      };
+    }
+    if (state.snapshot) renderBuildSurface(state.snapshot.legalActions || []);
+  }
+
+  async function submitBuildDraft(actions = state.snapshot?.legalActions || []) {
+    const draft = state.buildDraft;
+    const action = draft?.building && draft?.at ? buildActionFor(actions, draft.building, draft.at) : null;
+    if (!action) {
+      clearBuildDraft();
+      return;
+    }
+    state.buildDraft = { building: draft.building, at: [...draft.at], action };
+    const accepted = await submitAction(action);
+    clearBuildDraft();
+    if (!accepted && state.snapshot) renderBuildSurface(state.snapshot.legalActions || []);
+  }
+
+  function dispatchActions(actions = state.snapshot?.legalActions || []) {
+    return actions.filter((action) => action.type === 'dispatch' && Array.isArray(action.from));
+  }
+
+  function dispatchStartActions(actions) {
+    const starts = new Map();
+    for (const action of dispatchActions(actions)) {
+      const key = coordKey(action.from);
+      if (!starts.has(key)) starts.set(key, action);
+    }
+    return starts;
+  }
+
+  function adjacentCoord(a, b) {
+    return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) === 1;
+  }
+
+  function dispatchRouteCoords(draft) {
+    return draft ? [draft.from, ...(draft.route || [])] : [];
+  }
+
+  function dispatchNextCoords(draft) {
+    if (!draft || draft.endLocked) return [];
+    const last = draft.route?.length ? draft.route[draft.route.length - 1] : draft.from;
+    const used = new Set(dispatchRouteCoords(draft).map(coordKey));
+    return (state.snapshot?.board || [])
+      .filter((tile) => adjacentCoord(last, tile.coord) && !used.has(coordKey(tile.coord)))
+      .map((tile) => tile.coord);
+  }
+
+  function dispatchSourceTile(coord) {
+    return state.snapshot?.board?.find((tile) => coordKey(tile.coord) === coordKey(coord)) || null;
+  }
+
+  function dispatchCanTake(coord) {
+    const route = dispatchRouteCoords(state.dispatchDraft);
+    return route.slice(0, -1).some((candidate) => coordKey(candidate) === coordKey(coord));
+  }
+
+  function dispatchTotals(allocations = {}) {
+    const totals = { militia: 0, guard: 0 };
+    for (const forces of Object.values(allocations)) {
+      totals.militia += forces.militia || 0;
+      totals.guard += forces.guard || 0;
+    }
+    return totals;
+  }
+
+  function dispatchPower(forces) {
+    const units = window.CONFIG_312?.units || {};
+    return Object.entries(forces || {}).reduce((sum, [unit, count]) => sum + (units[unit]?.power || 0) * count, 0);
+  }
+
+  function dispatchCapacity(forces) {
+    const units = window.CONFIG_312?.units || {};
+    return Object.entries(forces || {}).reduce((sum, [unit, count]) => sum + (units[unit]?.capacity || 0) * count, 0);
+  }
+
+  function updateDispatchAction() {
+    const draft = state.dispatchDraft;
+    if (!draft) return;
+    const forces = dispatchTotals(draft.allocations);
+    draft.forces = forces;
+    draft.action = draft.route?.length ? {
+      ...draft.baseAction,
+      from: [...draft.from],
+      to: [...draft.route[draft.route.length - 1]],
+      route: draft.route.map((coord) => [...coord]),
+      forces,
+      routeForces: Object.entries(draft.allocations)
+        .filter(([, allocation]) => (allocation.militia || 0) + (allocation.guard || 0) > 0)
+        .map(([at, allocation]) => ({ at: at.split(',').map(Number), forces: { ...allocation } })),
+    } : null;
+  }
+
+  function chooseDispatchStart(coord, actions = state.snapshot?.legalActions || []) {
+    if (!buildCanAct()) return false;
+    const baseAction = dispatchStartActions(actions).get(coordKey(coord));
+    if (!baseAction) return false;
+    state.dispatchDraft = {
+      from: [...coord],
+      route: [],
+      baseAction,
+      allocations: {},
+      forces: { militia: 0, guard: 0 },
+      action: null,
+      endLocked: false,
+    };
+    renderDispatchSurface(actions);
+    return true;
+  }
+
+  function handleDispatchTile(tile) {
+    const actions = state.snapshot?.legalActions || [];
+    if (!state.dispatchDraft) {
+      chooseDispatchStart(tile.coord, actions);
+      return true;
+    }
+    const draft = state.dispatchDraft;
+    const coord = tile.coord;
+    const fullRoute = dispatchRouteCoords(draft);
+    const inRoute = fullRoute.some((candidate) => coordKey(candidate) === coordKey(coord));
+    if (inRoute) {
+      if (!draft.endLocked && draft.route.length && coordKey(draft.route[draft.route.length - 1]) === coordKey(coord)) {
+        draft.endLocked = true;
+        updateDispatchAction();
+        renderDispatchSurface(actions);
+        return true;
+      }
+      if (coordKey(coord) === coordKey(draft.from) || draft.endLocked || coordKey(coord) !== coordKey(draft.route[draft.route.length - 1])) {
+        showTileDetail(tile);
+        return true;
+      }
+    }
+    if (!draft.endLocked && dispatchNextCoords(draft).some((candidate) => coordKey(candidate) === coordKey(coord))) {
+      draft.route.push([...coord]);
+      if (tile.owner !== state.enginePlayerId || !tile.explored || !tile.controlled) draft.endLocked = true;
+      updateDispatchAction();
+      renderDispatchSurface(actions);
+      return true;
+    }
+    return true;
+  }
+
+  function changeDispatchForce(coord, unit, delta) {
+    const draft = state.dispatchDraft;
+    if (!draft || !dispatchCanTake(coord)) return;
+    const source = dispatchSourceTile(coord);
+    if (!source) return;
+    const current = draft.allocations[coordKey(coord)] || { militia: 0, guard: 0 };
+    const next = Math.max(0, Math.min(source.garrison?.[unit] || 0, (current[unit] || 0) + delta));
+    if (delta < 0 && source.kind === 'hq') {
+      const afterSelected = (current.militia || 0) - (unit === 'militia' ? next : (current.militia || 0))
+        + (current.guard || 0) - (unit === 'guard' ? next : (current.guard || 0));
+      const remaining = (source.garrison.militia || 0) + (source.garrison.guard || 0) - afterSelected;
+      if (remaining <= 0) return;
+    }
+    current[unit] = next;
+    if (!current.militia && !current.guard) delete draft.allocations[coordKey(coord)];
+    else draft.allocations[coordKey(coord)] = current;
+    updateDispatchAction();
+    renderDispatchSurface(state.snapshot?.legalActions || []);
+    showTileDetail(source);
+  }
+
+  function clearDispatchDraft({ refresh = true } = {}) {
+    state.dispatchDraft = null;
+    closeTileDetail();
+    if (refresh && state.snapshot) renderDispatchSurface(state.snapshot.legalActions || []);
+  }
+
+  function renderDispatchSummary(container, canAct) {
+    const draft = state.dispatchDraft;
+    if (!draft) return;
+    const summary = document.createElement('div');
+    summary.className = 'dispatch-summary';
+    summary.setAttribute('aria-label', '已选择派遣兵力');
+    const totals = dispatchTotals(draft.allocations);
+    for (const unit of ['militia', 'guard']) {
+      const row = document.createElement('div');
+      row.className = 'dispatch-summary-row';
+      row.textContent = `${UNIT_LABELS[unit]} ${totals[unit] || 0}`;
+      summary.append(row);
+    }
+    const stats = document.createElement('strong');
+    stats.textContent = `战力 ${dispatchPower(totals)}　产能 ${dispatchCapacity(totals)}`;
+    summary.append(stats);
+    container.append(summary);
+  }
+
+  function renderDispatchSurface(actions = state.snapshot?.legalActions || []) {
+    if (!state.snapshot) return;
+    renderBoard(state.snapshot);
+    renderActions(actions);
+  }
+
+  async function submitDispatchDraft(actions = state.snapshot?.legalActions || []) {
+    const draft = state.dispatchDraft;
+    if (!draft?.endLocked || !draft.action) {
+      clearDispatchDraft();
+      return;
+    }
+    const path = dispatchRouteCoords(draft).map((coord) => [...coord]);
+    const accepted = await submitAction(draft.action);
+    clearDispatchDraft();
+    if (accepted) {
+      document.querySelectorAll('.tile').forEach((tile) => {
+        if (path.some((coord) => coordKey(coord) === tile.dataset.coord)) tile.classList.add('is-dispatch-moving');
+      });
+      window.setTimeout(() => document.querySelectorAll('.tile.is-dispatch-moving').forEach((tile) => tile.classList.remove('is-dispatch-moving')), 420);
+    } else if (state.snapshot) renderDispatchSurface(state.snapshot.legalActions || actions);
+  }
+
+  function renderRecruitPanel(container, actions, canAct) {
+    const recruitActions = actions.filter((action) => action.type === 'recruit');
+    if (!recruitActions.length) return;
+    const panel = document.createElement('div');
+    panel.className = 'recruit-panel';
+    panel.setAttribute('aria-label', '招募行动');
+    const units = [...new Set(recruitActions.map((action) => action.unit))];
+    const selected = state.recruitDraft?.unit;
+    for (const unit of units) {
+      const row = document.createElement('div');
+      row.className = `recruit-row${selected === unit ? ' is-selected' : ''}`;
+      const unitConfig = window.CONFIG_312.units[unit] || {};
+      const select = document.createElement('button');
+      select.type = 'button';
+      select.className = 'recruit-unit';
+      select.textContent = `${UNIT_LABELS[unit] || unit} · 战力 ${unitConfig.power ?? '—'} · 产能 ${unitConfig.capacity ?? '—'} · ${resourceCostLabel(unitConfig.recruit)}`;
+      select.disabled = !canAct;
+      select.setAttribute('aria-pressed', String(selected === unit));
+      select.onclick = () => {
+        state.recruitDraft = { unit, count: Math.min(state.recruitDraft?.count || 1, 3), action: null };
+        renderActions(actions);
+      };
+      const quantity = document.createElement('span');
+      quantity.className = 'recruit-quantity';
+      quantity.textContent = String(selected === unit ? state.recruitDraft?.count || 0 : 0);
+      row.append(select, quantity);
+      panel.append(row);
+    }
+    if (selected) {
+      const controls = document.createElement('div');
+      controls.className = 'recruit-controls';
+      const minus = document.createElement('button');
+      minus.type = 'button';
+      minus.textContent = '−';
+      minus.disabled = !canAct || (state.recruitDraft.count || 0) <= 1;
+      minus.onclick = () => { state.recruitDraft.count -= 1; renderActions(actions); };
+      const plus = document.createElement('button');
+      plus.type = 'button';
+      plus.textContent = '+';
+      plus.disabled = !canAct || (state.recruitDraft.count || 0) >= 3 || !recruitActions.some((action) => action.unit === selected && action.count === (state.recruitDraft.count || 0) + 1);
+      plus.onclick = () => { state.recruitDraft.count += 1; renderActions(actions); };
+      controls.append(minus, plus);
+      panel.append(controls);
+      const confirmAction = recruitActions.find((action) => action.unit === selected && action.count === state.recruitDraft.count);
+      const confirm = document.createElement('button');
+      confirm.type = 'button';
+      confirm.id = 'recruit-confirm';
+      confirm.className = 'primary-button';
+      confirm.textContent = '确认招募';
+      confirm.disabled = !canAct || !confirmAction;
+      confirm.onclick = () => void submitAction(confirmAction);
+      panel.append(confirm);
+    }
+    container.append(panel);
+  }
+
   function renderBoard(snapshot) {
+    const buildMode = state.actionMode === 'build' && snapshot.phase === 'action';
+    const dispatchMode = state.actionMode === 'dispatch' && snapshot.phase === 'action';
+    const targets = buildTargetActions(snapshot.legalActions || []);
+    const dispatchStarts = dispatchStartActions(snapshot.legalActions || []);
+    const dispatchRoute = dispatchRouteCoords(state.dispatchDraft);
+    const dispatchNext = new Set(dispatchNextCoords(state.dispatchDraft).map(coordKey));
     $('board').replaceChildren(...snapshot.board.map((tile) => {
       const cell = document.createElement('div');
       cell.className = 'tile';
+      cell.dataset.coord = coordKey(tile.coord);
       cell.tabIndex = 0;
       cell.setAttribute('role', 'button');
       cell.setAttribute('aria-haspopup', 'dialog');
@@ -649,11 +1056,43 @@
       const expedition = tile.expeditions?.length ? `远征 ${tile.expeditions.length}` : '';
       cell.setAttribute('aria-label', `${tile.coord.join(',')} ${tile.explored ? owner : '未知'} ${building} ${expedition}`.trim());
       renderTileVisual(cell, tile);
-      cell.addEventListener('click', () => showTileDetail(tile));
+      const targetActions = targets.get(cell.dataset.coord) || [];
+      const selected = state.buildDraft?.at && coordKey(state.buildDraft.at) === cell.dataset.coord;
+      const dispatchEndpoint = dispatchMode && state.dispatchDraft?.endLocked
+        && dispatchRoute.length > 0
+        && coordKey(dispatchRoute[dispatchRoute.length - 1]) === cell.dataset.coord;
+      cell.classList.toggle('is-build-target', buildMode && targetActions.length > 0);
+      cell.classList.toggle('is-build-target-selected', buildMode && Boolean(selected));
+      cell.classList.toggle('is-dispatch-start', dispatchMode && !state.dispatchDraft && dispatchStarts.has(cell.dataset.coord));
+      cell.classList.toggle('is-dispatch-unavailable', dispatchMode && !state.dispatchDraft && !dispatchStarts.has(cell.dataset.coord));
+      cell.classList.toggle('is-dispatch-route', dispatchMode && dispatchRoute.some((coord) => coordKey(coord) === cell.dataset.coord));
+      cell.classList.toggle('is-dispatch-next', dispatchMode && Boolean(state.dispatchDraft) && dispatchNext.has(cell.dataset.coord));
+      cell.classList.toggle('is-dispatch-battle', Boolean(dispatchEndpoint && !tile.explored));
+      if (dispatchEndpoint && !tile.explored) {
+        const battle = document.createElement('span');
+        battle.className = 'tile-dispatch-battle';
+        battle.textContent = '战斗';
+        battle.setAttribute('aria-label', '战斗');
+        cell.append(battle);
+        cell.setAttribute('aria-label', `${cell.getAttribute('aria-label')} 战斗`);
+      }
+      if (buildMode && selected) {
+        cell.classList.add('is-build-preview');
+        const preview = document.createElement('span');
+        preview.className = 'tile-build-preview';
+        preview.textContent = state.buildDraft.building ? cardDescription(state.buildDraft.building).label : '建造';
+        cell.append(preview);
+      }
+      const handleTile = () => {
+        if (dispatchMode && handleDispatchTile(tile)) return;
+        if (buildMode && chooseBuildTarget(tile.coord, snapshot.legalActions || [])) return;
+        showTileDetail(tile);
+      };
+      cell.addEventListener('click', handleTile);
       cell.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
-        showTileDetail(tile);
+        handleTile();
       });
       return cell;
     }));
@@ -817,20 +1256,42 @@
     $('hand-page-label').textContent = `${state.handPage + 1} / ${pageCount}`;
     $('hand-page-prev').disabled = state.handPage === 0;
     $('hand-page-next').disabled = state.handPage >= pageCount - 1;
+    const buildMode = state.actionMode === 'build' && state.snapshot?.phase === 'action';
+    const actions = state.snapshot?.legalActions || [];
     $('hand').replaceChildren(...(visibleHand.length ? visibleHand : []).map((card) => {
-      const item = document.createElement('div');
+      const item = buildMode ? document.createElement('button') : document.createElement('div');
       const description = cardDescription(card);
       renderCardDetail(item, card);
       item.classList.add('card-chip-interactive');
+      if (buildMode) {
+        item.type = 'button';
+        item.classList.add('is-build-card');
+        const available = Boolean(state.buildDraft?.at && buildActionFor(actions, card, state.buildDraft.at))
+          || buildActions(actions).some((action) => action.building === card);
+        item.disabled = !available || !buildCanAct();
+        item.setAttribute('aria-disabled', String(item.disabled));
+        item.classList.toggle('is-build-card-disabled', item.disabled);
+        item.addEventListener('pointerdown', (event) => {
+          if (item.disabled || event.button !== undefined && event.button !== 0) return;
+          event.preventDefault();
+          state.buildDrag = { card, pointerId: event.pointerId, ghost: createBuildDragGhost(card) };
+          updateBuildDrag(event);
+        });
+        item.addEventListener('click', () => {
+          if (!item.disabled) chooseBuildCard(card, actions);
+        });
+      } else {
+        item.addEventListener('click', () => showCardDetail(card));
+      }
       item.tabIndex = 0;
       item.setAttribute('role', 'button');
       item.setAttribute('aria-haspopup', 'dialog');
       item.setAttribute('aria-label', `${description.label} 卡牌详情`);
-      item.addEventListener('click', () => showCardDetail(card));
       item.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
-        showCardDetail(card);
+        if (buildMode) chooseBuildCard(card, actions);
+        else showCardDetail(card);
       });
       return item;
     }));
@@ -927,7 +1388,17 @@
   function renderActions(actions) {
     renderPurchaseActions(actions);
     const actionsPanel = $('legal-actions');
+    const actionAp = $('action-ap');
+    const actionPass = $('action-pass');
     const currentPhase = state.snapshot?.phase || document.querySelector('.phase-step.is-current')?.dataset.phase;
+    if (currentPhase !== 'action') {
+      state.actionMode = null;
+      state.buildDraft = null;
+      state.dispatchDraft = null;
+      state.recruitDraft = null;
+      actionAp.hidden = true;
+      actionPass.hidden = true;
+    }
     if (currentPhase === 'purchase') {
       actionsPanel.replaceChildren();
       return;
@@ -936,28 +1407,111 @@
       ? document.querySelector(`.phase-step[data-phase="${currentPhase}"] .phase-step-actions`)
       : null;
     if (host && actionsPanel && host !== actionsPanel && actionsPanel.parentElement !== host) host.append(actionsPanel);
-    actionsPanel.replaceChildren(...actions.map((action) => {
+    if (currentPhase !== 'action') {
+      actionsPanel.replaceChildren();
+      return;
+    }
+    if (state.buildDraft?.action && !actions.some((action) => action.type === 'build'
+      && action.building === state.buildDraft.building
+      && coordKey(action.at) === coordKey(state.buildDraft.at))) {
+      state.buildDraft = null;
+    }
+    if (state.dispatchDraft?.action && !actions.some((action) => action.type === 'dispatch')) {
+      state.dispatchDraft = null;
+    }
+    const me = state.snapshot?.players?.find((player) => player.id === state.enginePlayerId) || state.snapshot?.players?.[0];
+    const totalAp = window.CONFIG_312?.start?.ap ?? 3;
+    actionAp.hidden = false;
+    actionAp.textContent = `AP ${me?.ap ?? 0} / ${totalAp}`;
+    const canAct = me?.seat === state.snapshot?.activeSeat && !state.phaseNoticePlaying && state.phaseNoticeQueue.length === 0;
+    const typeGroups = [
+      { type: 'build', label: '建造', actions: actions.filter((action) => action.type === 'build') },
+      { type: 'dispatch', label: '派遣', actions: actions.filter((action) => action.type === 'dispatch' || action.type === 'deploy') },
+      { type: 'recruit', label: '招募', actions: actions.filter((action) => action.type === 'recruit') },
+    ].filter((group) => group.actions.length);
+    actionsPanel.replaceChildren(...typeGroups.map((group) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'action-button';
-      button.disabled = state.phaseNoticePlaying || state.phaseNoticeQueue.length > 0;
-      button.dataset.actionType = action.type;
-      const label = document.createElement('span');
-      label.className = 'action-type';
-      label.textContent = actionLabel(action);
-      const meta = document.createElement('span');
-      meta.className = 'action-meta';
-      meta.textContent = actionMeta(action);
-      button.append(label, meta);
-      button.addEventListener('click', () => submitAction(action));
+      button.className = 'action-entry';
+      button.disabled = !canAct;
+      button.dataset.actionType = group.type;
+      button.setAttribute('aria-pressed', String(state.actionMode === group.type));
+      button.textContent = group.label;
+      button.addEventListener('click', () => {
+        state.actionMode = state.actionMode === group.type ? null : group.type;
+        if (state.actionMode !== 'build') clearBuildDraft({ refresh: false });
+        if (state.actionMode !== 'dispatch') clearDispatchDraft({ refresh: false });
+        if (state.actionMode !== 'recruit') state.recruitDraft = null;
+        if (state.actionMode === 'build') {
+          renderBoard(state.snapshot);
+          renderHandPage(state.hand);
+        }
+        if (state.actionMode === 'dispatch') renderBoard(state.snapshot);
+        renderActions(actions);
+      });
       return button;
     }));
-    if (!actions.length) {
-      const empty = document.createElement('p');
-      empty.className = 'muted';
-      empty.textContent = '当前没有可执行行动';
-      actionsPanel.append(empty);
+    const selectedGroup = typeGroups.find((group) => group.type === state.actionMode);
+    if (selectedGroup && selectedGroup.type !== 'build') {
+      const subactions = document.createElement('div');
+      subactions.className = 'action-subactions';
+      subactions.setAttribute('aria-label', `${selectedGroup.label}可选行动`);
+      for (const action of selectedGroup.actions.filter((candidate) => candidate.type === 'deploy')) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'action-button';
+        button.disabled = !canAct;
+        button.dataset.actionType = action.type;
+        button.textContent = actionLabel(action);
+        const meta = actionMeta(action);
+        if (meta) button.setAttribute('aria-label', `${actionLabel(action)}，${meta}`);
+        button.addEventListener('click', () => void submitAction(action));
+        subactions.append(button);
+      }
+      actionsPanel.append(subactions);
     }
+    if (state.actionMode === 'build') {
+      const confirm = document.createElement('button');
+      confirm.id = 'build-confirm';
+      confirm.type = 'button';
+      confirm.className = 'primary-button build-confirm';
+      confirm.textContent = '确认建造';
+      confirm.disabled = !canAct || !state.buildDraft?.action;
+      confirm.addEventListener('click', () => void submitBuildDraft(actions));
+      actionsPanel.append(confirm);
+    }
+    if (state.actionMode === 'dispatch') {
+      renderDispatchSummary(actionsPanel, canAct);
+      const endpoint = document.createElement('button');
+      endpoint.id = 'dispatch-confirm-endpoint';
+      endpoint.type = 'button';
+      endpoint.className = 'secondary-button';
+      endpoint.textContent = '确认终点';
+      endpoint.disabled = !canAct || !state.dispatchDraft?.route?.length;
+      endpoint.onclick = () => {
+        if (!state.dispatchDraft) return;
+        state.dispatchDraft.endLocked = true;
+        updateDispatchAction();
+        renderDispatchSurface(actions);
+      };
+      actionsPanel.append(endpoint);
+      const confirm = document.createElement('button');
+      confirm.id = 'dispatch-confirm';
+      confirm.type = 'button';
+      confirm.className = 'primary-button';
+      confirm.textContent = '确认派遣';
+      confirm.disabled = !canAct || !state.dispatchDraft?.endLocked || !state.dispatchDraft?.action
+        || dispatchTotals(state.dispatchDraft.allocations).militia + dispatchTotals(state.dispatchDraft.allocations).guard < 1;
+      confirm.onclick = () => void submitDispatchDraft(actions);
+      actionsPanel.append(confirm);
+    }
+    if (state.actionMode === 'recruit') renderRecruitPanel(actionsPanel, actions, canAct);
+    const passAction = actions.find((action) => action.type === 'pass');
+    actionPass.hidden = !passAction;
+    actionPass.disabled = !canAct || !passAction;
+    actionPass.onclick = () => {
+      if (passAction) void submitAction(passAction);
+    };
   }
 
   function renderLogList(element, events, emptyMessage) {
@@ -1273,6 +1827,11 @@
     state.lastActiveSeat = null;
     state.lastPhase = null;
     state.selectedPurchaseSlot = null;
+    state.actionMode = null;
+    state.buildDraft = null;
+    state.buildDrag = null;
+    state.dispatchDraft = null;
+    state.recruitDraft = null;
     resetPhaseNotices();
     $('entry').hidden = false;
     $('room-panel').hidden = true;
@@ -1313,6 +1872,11 @@
       state.lastActiveSeat = null;
       state.lastPhase = null;
       state.selectedPurchaseSlot = null;
+      state.actionMode = null;
+      state.buildDraft = null;
+      state.buildDrag = null;
+      state.dispatchDraft = null;
+      state.recruitDraft = null;
       resetPhaseNotices();
       state.room = roomCode();
       state.roomState = Room.createRoomState({ room: state.room, hostId: state.hostId, invites: Room.createInvites(['P1', 'P2', 'P3', 'P4']) });
@@ -1359,6 +1923,11 @@
       state.lastActiveSeat = null;
       state.lastPhase = null;
       state.selectedPurchaseSlot = null;
+      state.actionMode = null;
+      state.buildDraft = null;
+      state.buildDrag = null;
+      state.dispatchDraft = null;
+      state.recruitDraft = null;
       resetPhaseNotices();
       $('game-panel').hidden = true;
       $('game-session-meta').hidden = true;
@@ -1469,6 +2038,11 @@
       state.lastPhase = null;
       resetPhaseNotices();
       state.selectedPurchaseSlot = null;
+      state.actionMode = null;
+      state.buildDraft = null;
+      state.buildDrag = null;
+      state.dispatchDraft = null;
+      state.recruitDraft = null;
       state.room = null;
       state.roomState = null;
       state.game = Engine.createGame({ seed: 312, players: [1, 2, 3, 4].map((seat) => ({ id: `p${seat}`, name: `P${seat}`, seat })), config: window.CONFIG_312 });
@@ -1496,20 +2070,21 @@
   }
 
   async function submitAction(action) {
-    if (!state.snapshot) return;
-    if (state.phaseNoticePlaying || state.phaseNoticeQueue.length > 0) return;
+    if (!state.snapshot) return false;
+    if (state.phaseNoticePlaying || state.phaseNoticeQueue.length > 0) return false;
     if (state.mode === 'simulation') {
       try {
         state.game = Engine.applyCommand(state.game, { seq: state.snapshot.seq, playerId: state.enginePlayerId, action }).state;
         settleAutomatic();
         renderSnapshot(Engine.snapshot(state.game, state.enginePlayerId));
-      } catch (error) { setError(error); }
-      return;
+        return true;
+      } catch (error) { setError(error); return false; }
     }
-    if (!state.transport || state.mode === 'host') return;
+    if (!state.transport || state.mode === 'host') return false;
     try {
       await state.transport.sendCommand({ seq: state.snapshot.seq, playerId: state.enginePlayerId, action });
-    } catch (error) { setError(error); }
+      return true;
+    } catch (error) { setError(error); return false; }
   }
 
   function publishDebug() {
@@ -1565,9 +2140,18 @@
     closeTileDetail();
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeTileDetail();
+    if (event.key === 'Escape') {
+      if (state.actionMode === 'build') {
+        clearBuildDraft();
+        renderActions(state.snapshot?.legalActions || []);
+      }
+      closeTileDetail();
+    }
   });
   document.addEventListener('pointerdown', unlockTurnAudio, { passive: true });
+  document.addEventListener('pointermove', updateBuildDrag, { passive: true });
+  document.addEventListener('pointerup', (event) => finishBuildDrag(event), { passive: true });
+  document.addEventListener('pointercancel', (event) => finishBuildDrag(event, true), { passive: true });
   document.addEventListener('keydown', unlockTurnAudio);
   window.addEventListener('pagehide', () => {
     if (state.mode === 'player' && state.transport) state.transport.leave();

@@ -178,7 +178,11 @@
               </div>
               <div class="phase-step" data-phase="action">
                 <button class="phase-step-header" type="button" data-phase-toggle="action" aria-expanded="true" aria-controls="phase-content-action"><span class="phase-step-dot">4</span><span><span class="phase-label">行动</span><strong>建设与调度</strong></span><span class="phase-step-caret" aria-hidden="true">⌄</span></button>
-                <div id="phase-content-action" class="phase-step-content"><div id="legal-actions" class="phase-step-actions actions" data-phase-actions="action" aria-label="当前阶段可执行行动"></div></div>
+                <div id="phase-content-action" class="phase-step-content">
+                  <div id="action-ap" class="action-ap-readout" aria-label="行动点" hidden></div>
+                  <div id="legal-actions" class="phase-step-actions actions" data-phase-actions="action" aria-label="当前阶段可执行行动"></div>
+                  <button id="action-pass" class="secondary-button action-pass" type="button" hidden>结束行动</button>
+                </div>
               </div>
               <div class="phase-step" data-phase="combat">
                 <button class="phase-step-header" type="button" data-phase-toggle="combat" aria-expanded="true" aria-controls="phase-content-combat"><span class="phase-step-dot">5</span><span><span class="phase-label">战斗</span><strong>同时解决冲突</strong></span><span class="phase-step-caret" aria-hidden="true">⌄</span></button>
