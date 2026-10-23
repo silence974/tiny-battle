@@ -202,9 +202,14 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .production-tier.is-active { color: var(--ef-ink); background: var(--ef-signal); box-shadow: inset 5px 0 var(--ef-ink); }
 .production-tier strong { color: inherit; }
 .tier-axis { color: inherit; font-family: "Saira", sans-serif; font-size: 1rem; font-weight: 760; letter-spacing: .04em; }
-.force-detail-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; margin: 0; padding: .42rem .55rem; color: var(--ef-ink-2); border-top: 1px solid var(--ef-rule); font-size: .875rem; }
-.force-detail-row strong { font-size: 1rem; }
+.force-detail-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .65rem; align-items: center; margin: 0; padding: .48rem .6rem; color: var(--ef-ink-2); border-top: 1px solid var(--ef-rule); font-size: .875rem; }
+.force-detail-copy { display: grid; min-width: 0; gap: .12rem; }
+.force-detail-unit { color: var(--ef-ink); font-weight: 800; }
+.force-detail-meta { display: flex; flex-wrap: wrap; gap: .1rem .7rem; color: var(--ef-ink-2); font-family: "Saira", sans-serif; font-size: .72rem; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.force-detail-stat { white-space: nowrap; }
+.force-detail-quantity { min-width: 3.1rem; color: var(--ef-ink); font-family: "Saira", sans-serif; font-size: 1rem; font-variant-numeric: tabular-nums; text-align: right; }
 .force-detail-row:last-child { border-bottom: 1px solid var(--ef-rule); }
+.tile-inspector-forces > .muted { margin: 0; padding: .62rem .6rem; }
 
 .player-column { display: grid; gap: 1rem; min-width: 0; }
 .phase-rail { display: grid; gap: 1rem; align-content: start; padding: 1rem; }

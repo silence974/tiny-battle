@@ -581,16 +581,31 @@
     const forcesPanel = $('tile-inspector-forces');
     forcesPanel.hidden = false;
     forcesPanel.replaceChildren();
-    if (tile.explored && tile.garrison) {
-      const forceRows = Object.entries(tile.garrison).map(([unit, count]) => {
+    const forceEntries = Object.entries(tile.garrison || {}).filter(([, count]) => Number(count) > 0);
+    if (tile.explored && forceEntries.length) {
+      const forceRows = forceEntries.map(([unit, count]) => {
         const row = document.createElement('div');
         row.className = 'force-detail-row';
         const unitConfig = window.CONFIG_312.units[unit] || {};
-        const description = document.createElement('span');
-        description.textContent = `${UNIT_LABELS[unit] || unit}｜战力 ${unitConfig.power ?? '—'}｜产能 ${unitConfig.capacity ?? '—'}`;
+        const copy = document.createElement('div');
+        copy.className = 'force-detail-copy';
+        const unitLabel = document.createElement('span');
+        unitLabel.className = 'force-detail-unit';
+        unitLabel.textContent = UNIT_LABELS[unit] || unit;
+        const meta = document.createElement('span');
+        meta.className = 'force-detail-meta';
+        for (const [label, value] of [['战力', unitConfig.power ?? '—'], ['产能', unitConfig.capacity ?? '—']]) {
+          const stat = document.createElement('span');
+          stat.className = 'force-detail-stat';
+          stat.textContent = `${label} ${value}`;
+          meta.append(stat);
+        }
+        copy.append(unitLabel, meta);
         const quantity = document.createElement('strong');
-        quantity.textContent = String(count);
-        row.append(description, quantity);
+        quantity.className = 'force-detail-quantity';
+        quantity.setAttribute('aria-label', `${UNIT_LABELS[unit] || unit}人数 ${count}`);
+        quantity.textContent = `${count}人`;
+        row.append(copy, quantity);
         return row;
       });
       forcesPanel.append(...forceRows);

@@ -126,7 +126,21 @@ test('tile inspector keeps the clean overlay content contract', () => {
   assert.match(css, /\.production-tier-header\s*\{[^}]*font-size:\s*1rem/s);
   assert.match(css, /\.tile-inspector-tiers \.production-tier\s*\{[^}]*font-size:\s*1rem/s);
   assert.match(css, /\.tile-inspector-tiers \.production-tier:last-child\s*\{[^}]*border-bottom:\s*0/s);
-  assert.match(css, /\.force-detail-row strong\s*\{[^}]*font-size:\s*1rem/s);
+  assert.match(css, /\.force-detail-quantity\s*\{[^}]*font-size:\s*1rem/s);
+});
+
+test('garrison details show only staffed unit types with structured metadata', () => {
+  const app = read('app.js');
+  const css = read('styles.css');
+  const detail = app.slice(app.indexOf("const forcesPanel = $('tile-inspector-forces')"), app.indexOf('inspector.hidden = false;', app.indexOf("const forcesPanel = $('tile-inspector-forces')")));
+  assert.match(detail, /Object\.entries\(tile\.garrison \|\| \{\}\)\.filter\(\(\[, count\]\) => Number\(count\) > 0\)/);
+  assert.match(detail, /force-detail-copy/);
+  assert.match(detail, /force-detail-meta/);
+  assert.match(detail, /force-detail-quantity/);
+  assert.doesNotMatch(detail, /｜/);
+  assert.match(css, /\.force-detail-copy\s*\{[^}]*display:\s*grid/s);
+  assert.match(css, /\.force-detail-meta\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /\.force-detail-quantity\s*\{[^}]*text-align:\s*right/s);
 });
 
 test('board tiles are square and expose an accessible snapshot detail inspector', () => {
