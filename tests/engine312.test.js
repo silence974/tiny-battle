@@ -48,6 +48,13 @@ function command(state, playerId, action) {
   }).state;
 }
 
+function enterActionAfterProduction(state) {
+  state = Engine.advance(state);
+  state = Engine.advance(state);
+  for (const player of PLAYERS) state = command(state, player.id, { type: 'pass_purchase' });
+  return state;
+}
+
 test('candidate 312 config locks the board, phases, costs, and disputed boundaries', () => {
   assert.equal(CONFIG.board.rows, 7);
   assert.equal(CONFIG.board.cols, 7);
@@ -179,6 +186,7 @@ test('legal actions expose dispatch and recruiting, and recruitment stations uni
   let state = stageAction(freshGame());
   const barracks = setControlledTile(state, 'p1', [1, 0]);
   barracks.building = 'barracks';
+  state.players[0].recruitmentEligibleRound = state.round;
   state.players[0].resources.food = 3;
   const actions = Engine.legalActions(state, 'p1');
   assert.ok(actions.some((action) => action.type === 'dispatch'));
@@ -189,6 +197,33 @@ test('legal actions expose dispatch and recruiting, and recruitment stations uni
   state = command(state, 'p1', { type: 'recruit', at: [1, 0], unit: 'militia', count: 1 });
   assert.deepEqual(tile(state, [1, 0]).garrison, { militia: before.militia + 1, guard: before.guard });
   assert.deepEqual(state.players[0].reserve, { militia: 0, guard: 0 });
+});
+
+test('recruit eligibility is stamped by production and blocks a barracks built during action until next round', () => {
+  let eligible = freshGame();
+  const existingBarracks = setControlledTile(eligible, 'p1', [1, 0]);
+  existingBarracks.building = 'barracks';
+  eligible.players[0].resources.food = 3;
+  eligible = enterActionAfterProduction(eligible);
+  assert.equal(eligible.players[0].recruitmentEligibleRound, eligible.round);
+  assert.ok(Engine.legalActions(eligible, 'p1').some((action) => action.type === 'recruit' && action.at.join(',') === '1,0'));
+
+  let state = enterActionAfterProduction(freshGame());
+  const barracks = setControlledTile(state, 'p1', [1, 0]);
+  barracks.building = 'barracks';
+  state.players[0].resources.food = 3;
+  const recruit = { type: 'recruit', at: [1, 0], unit: 'militia', count: 1 };
+
+  assert.equal(state.players[0].recruitmentEligibleRound, null);
+  assert.equal(Engine.legalActions(state, 'p1').some((action) => action.type === 'recruit'), false);
+  assert.throws(() => command(state, 'p1', recruit), /production eligibility/);
+
+  state.phase = 'production';
+  state.round += 1;
+  state = Engine.advance(state);
+  assert.equal(state.players[0].recruitmentEligibleRound, state.round);
+  for (const player of PLAYERS) state = command(state, player.id, { type: 'pass_purchase' });
+  assert.ok(Engine.legalActions(state, 'p1').some((action) => action.type === 'recruit' && action.at.join(',') === '1,0'));
 });
 
 test('black expansion changes the board, build increases rewards, and garrison increases power', () => {

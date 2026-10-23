@@ -45,6 +45,18 @@ function unitCount(forces) {
   return Object.values(forces || {}).reduce((sum, count) => sum + (count || 0), 0);
 }
 
+function isEffectiveBarracks(tile, playerId, config) {
+  if (!tile || tile.owner !== playerId || !tile.controlled || !tile.explored) return false;
+  const recruitment = config.recruitment || {};
+  if (recruitment.requireBarracks !== false && tile.building !== 'barracks') return false;
+  if (recruitment.requiresStationedUnit !== false && unitCount(tile.garrison) <= 0) return false;
+  return true;
+}
+
+function hasRecruitmentEligibility(state, player, config) {
+  return player.recruitmentEligibleRound === state.round;
+}
+
 function emptyForces() {
   return { militia: 0, guard: 0 };
 }
@@ -143,6 +155,7 @@ function makePlayer(input, config) {
     ap: config.start.ap,
     passed: false,
     purchase: { faceUp: 0, blind: 0 },
+    recruitmentEligibleRound: null,
     permanentPoints: 0,
     score: 0,
     scoreBreakdown: { controlledTiles: 0, buildings: 0, permanent: 0, hq: 0 },
@@ -298,13 +311,15 @@ function legalActions(state, playerId, config = DEFAULT_CONFIG) {
       }
     }
   }
-  const maxRecruit = config.recruitment?.maxPerAction || 2;
-  for (const [coord, tile] of Object.entries(state.board)) {
-    if (tile.owner !== player.id || !tile.controlled || tile.building !== 'barracks' || unitCount(tile.garrison) <= 0) continue;
-    for (const unit of Object.keys(config.units)) {
-      for (let count = 1; count <= maxRecruit; count += 1) {
-        const cost = Object.fromEntries(Object.entries(config.units[unit].recruit || {}).map(([resource, amount]) => [resource, amount * count]));
-        if (canPay(player.resources, cost)) actions.push({ type: 'recruit', at: tile.coord, unit, count });
+  if (hasRecruitmentEligibility(state, player, config)) {
+    const maxRecruit = config.recruitment?.maxPerAction || 2;
+    for (const [coord, tile] of Object.entries(state.board)) {
+      if (!isEffectiveBarracks(tile, player.id, config)) continue;
+      for (const unit of Object.keys(config.units)) {
+        for (let count = 1; count <= maxRecruit; count += 1) {
+          const cost = Object.fromEntries(Object.entries(config.units[unit].recruit || {}).map(([resource, amount]) => [resource, amount * count]));
+          if (canPay(player.resources, cost)) actions.push({ type: 'recruit', at: tile.coord, unit, count });
+        }
       }
     }
   }
@@ -490,6 +505,7 @@ function applyCommand(input, command, config = DEFAULT_CONFIG) {
       player.ap -= 1;
       state.events.push({ type: 'dispatch', playerId: player.id, from: [...action.from], to: [...action.to], route: clone(action.route), forces: clone(dispatchResult.forces) });
     } else if (action.type === 'recruit') {
+      assert(hasRecruitmentEligibility(state, player, config), 'recruit requires production eligibility');
       const tile = state.board[key(action.at)];
       assert(tile && tile.owner === player.id && tile.building === 'barracks' && tile.controlled, 'recruit requires controlled barracks');
       assert(unitCount(tile.garrison) > 0, 'recruit requires stationed barracks');
@@ -736,6 +752,9 @@ function applyProduction(state, config) {
       for (const resource of Object.keys(player.resources)) player.resources[resource] += tier[resource] || 0;
       hq.productionLastRound = { gold: tier.gold || 0, wood: tier.wood || 0, food: tier.food || 0 };
     }
+    player.recruitmentEligibleRound = Object.values(state.board).some((tile) => isEffectiveBarracks(tile, player.id, config))
+      ? state.round
+      : null;
   }
   for (const tile of Object.values(state.board)) {
     tile.productionLastRound = productionForTile(tile, config);

@@ -28,6 +28,7 @@
 - Mobile pointer input must not create page overflow or leave a ghost after pointer cancellation — Task 3 browser smoke.
 - Dispatch must keep both route movement and deploy reachable; route force selection must remain after detail close — Task 4 browser smoke.
 - Recruit must expose one unit type at a time and permit at most three units — Task 4 engine/UI regression.
+- Recruit eligibility must be captured at production and shared by legal generation and command validation — Task 4 engine regression.
 
 ### Task 1: Make engine build adjacency authoritative
 
