@@ -499,8 +499,8 @@ test('build interaction uses one pending draft across tile-first and drag-first 
   assert.match(app, /function chooseBuildTarget/);
   assert.match(app, /function chooseBuildCard/);
   assert.match(app, /function submitBuildDraft/);
-  assert.match(app, /state\.buildDraft = \{ building, at: \[\.\.\.coord\], action:/);
-  assert.match(app, /state\.buildDraft = \{\s*building: drag\.card,\s*at: coord,\s*action:/s);
+  assert.match(app, /state\.buildDraft = \{ building, cardIndex, at: \[\.\.\.coord\], action:/);
+  assert.match(app, /state\.buildDraft = \{\s*building: drag\.card,\s*cardIndex: drag\.cardIndex,\s*at: coord,\s*action:/s);
   assert.match(app, /addEventListener\('pointermove', updateBuildDrag/);
   assert.match(app, /addEventListener\('pointerup', \(event\) => finishBuildDrag/);
   assert.match(app, /addEventListener\('pointercancel', \(event\) => finishBuildDrag/);
@@ -514,6 +514,15 @@ test('build interaction uses one pending draft across tile-first and drag-first 
   assert.match(css, /\.tile\.is-build-target\s*\{/);
   assert.match(css, /\.tile-build-preview\s*\{/);
   assert.match(css, /\.build-drag-ghost\s*\{/);
+});
+
+test('build hand selection distinguishes duplicate cards by hand index', () => {
+  const app = read('app.js');
+  assert.match(app, /\.map\(\(card, visibleIndex\)/);
+  assert.match(app, /const cardIndex = start \+ visibleIndex/);
+  assert.match(app, /state\.buildDraft\?\.cardIndex === cardIndex/);
+  assert.match(app, /cardIndex, actions\)/);
+  assert.match(app, /cardIndex: drag\.cardIndex/);
 });
 
 test('dispatch entry keeps deploy reachable and exposes route and force-selection states', () => {

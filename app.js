@@ -716,16 +716,17 @@
     if (!targetActions?.length) return false;
     const existing = state.buildDraft;
     const building = existing?.at && coordKey(existing.at) === coordKey(coord) ? existing.building : null;
-    state.buildDraft = { building, at: [...coord], action: building ? buildActionFor(actions, building, coord) : null };
+    const cardIndex = building ? existing.cardIndex : null;
+    state.buildDraft = { building, cardIndex, at: [...coord], action: building ? buildActionFor(actions, building, coord) : null };
     renderBuildSurface(actions);
     return true;
   }
 
-  function chooseBuildCard(card, actions = state.snapshot?.legalActions || []) {
+  function chooseBuildCard(card, cardIndex, actions = state.snapshot?.legalActions || []) {
     if (!buildCanAct() || state.actionMode !== 'build' || !state.buildDraft?.at) return false;
     const action = buildActionFor(actions, card, state.buildDraft.at);
     if (!action) return false;
-    state.buildDraft = { building: card, at: [...state.buildDraft.at], action };
+    state.buildDraft = { building: card, cardIndex, at: [...state.buildDraft.at], action };
     renderBuildSurface(actions);
     return true;
   }
@@ -768,6 +769,7 @@
     if (coord && buildTargetActions(state.snapshot?.legalActions || []).has(coordKey(coord))) {
       state.buildDraft = {
         building: drag.card,
+        cardIndex: drag.cardIndex,
         at: coord,
         action: buildActionFor(state.snapshot?.legalActions || [], drag.card, coord),
       };
@@ -782,7 +784,7 @@
       clearBuildDraft();
       return;
     }
-    state.buildDraft = { building: draft.building, at: [...draft.at], action };
+    state.buildDraft = { building: draft.building, cardIndex: draft.cardIndex, at: [...draft.at], action };
     const accepted = await submitAction(action);
     clearBuildDraft();
     if (!accepted && state.snapshot) renderBuildSurface(state.snapshot.legalActions || []);
@@ -1297,7 +1299,8 @@
     $('hand-page-next').disabled = state.handPage >= pageCount - 1;
     const buildMode = state.actionMode === 'build' && state.snapshot?.phase === 'action';
     const actions = state.snapshot?.legalActions || [];
-    $('hand').replaceChildren(...(visibleHand.length ? visibleHand : []).map((card) => {
+    $('hand').replaceChildren(...(visibleHand.length ? visibleHand : []).map((card, visibleIndex) => {
+      const cardIndex = start + visibleIndex;
       const item = buildMode ? document.createElement('button') : document.createElement('div');
       const description = cardDescription(card);
       renderCardDetail(item, card);
@@ -1305,7 +1308,7 @@
       if (buildMode) {
         item.type = 'button';
         item.classList.add('is-build-card');
-        const selectedBuildCard = state.buildDraft?.building === card;
+        const selectedBuildCard = state.buildDraft?.cardIndex === cardIndex;
         const available = Boolean(state.buildDraft?.at && buildActionFor(actions, card, state.buildDraft.at))
           || buildActions(actions).some((action) => action.building === card);
         item.disabled = !available || !buildCanAct();
@@ -1316,11 +1319,11 @@
         item.addEventListener('pointerdown', (event) => {
           if (item.disabled || event.button !== undefined && event.button !== 0) return;
           event.preventDefault();
-          state.buildDrag = { card, pointerId: event.pointerId, ghost: createBuildDragGhost(card) };
+          state.buildDrag = { card, cardIndex, pointerId: event.pointerId, ghost: createBuildDragGhost(card) };
           updateBuildDrag(event);
         });
         item.addEventListener('click', () => {
-          if (!item.disabled) chooseBuildCard(card, actions);
+          if (!item.disabled) chooseBuildCard(card, cardIndex, actions);
         });
       } else {
         item.addEventListener('click', () => showCardDetail(card));
@@ -1332,7 +1335,7 @@
       item.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
-        if (buildMode) chooseBuildCard(card, actions);
+        if (buildMode) chooseBuildCard(card, cardIndex, actions);
         else showCardDetail(card);
       });
       return item;
