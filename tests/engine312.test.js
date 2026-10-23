@@ -142,6 +142,39 @@ test('action phase is P1-to-P4 round robin rather than one seat spending all AP'
   assert.equal(state.players[0].ap, 2);
 });
 
+test('build legality requires an explored empty tile adjacent to controlled territory', () => {
+  let state = stageAction(freshGame());
+  setControlledTile(state, 'p1', [0, 1]);
+  const adjacentTarget = tile(state, [1, 1]);
+  adjacentTarget.kind = 'land';
+  adjacentTarget.explored = true;
+  adjacentTarget.owner = null;
+  adjacentTarget.garrison = { militia: 0, guard: 0 };
+  adjacentTarget.building = null;
+  const distantTarget = tile(state, [3, 0]);
+  distantTarget.kind = 'land';
+  distantTarget.explored = true;
+  distantTarget.owner = null;
+  distantTarget.garrison = { militia: 0, guard: 0 };
+  distantTarget.building = null;
+
+  const actions = Engine.legalActions(state, 'p1');
+  assert.ok(actions.some((action) => action.type === 'build' && action.at.join(',') === '1,1'));
+  assert.equal(actions.some((action) => action.type === 'build' && action.at.join(',') === '3,0'), false);
+
+  state = command(state, 'p1', { type: 'build', at: [1, 1], building: 'farm' });
+  assert.equal(tile(state, [1, 1]).building, 'farm');
+
+  const forged = stageAction(freshGame());
+  const forgedTarget = tile(forged, [3, 0]);
+  forgedTarget.kind = 'land';
+  forgedTarget.explored = true;
+  forgedTarget.owner = null;
+  forgedTarget.garrison = { militia: 0, guard: 0 };
+  forgedTarget.building = null;
+  assert.throws(() => command(forged, 'p1', { type: 'build', at: [3, 0], building: 'farm' }), /adjacent controlled territory/);
+});
+
 test('legal actions expose dispatch and recruiting, and recruitment stations units at barracks', () => {
   let state = stageAction(freshGame());
   const barracks = setControlledTile(state, 'p1', [1, 0]);
@@ -290,6 +323,7 @@ test('dispatch to an own controlled tile merges without entering combat', () => 
 
 test('building is legal on explored empty ground but production requires control', () => {
   let state = stageAction(freshGame());
+  setControlledTile(state, 'p1', [1, 0]);
   const empty = tile(state, [1, 1]);
   empty.explored = true;
   empty.kind = 'land';

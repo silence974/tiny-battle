@@ -16,6 +16,12 @@ function adjacent(a, b) {
   return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) === 1;
 }
 
+function hasAdjacentControlledTerritory(state, coord, playerId) {
+  return Object.values(state.board).some((tile) => {
+    return adjacent(coord, tile.coord) && tile.owner === playerId && tile.controlled && tile.explored;
+  });
+}
+
 function makeRng(seed) {
   let value = (Number(seed) >>> 0) || 1;
   return {
@@ -285,7 +291,7 @@ function legalActions(state, playerId, config = DEFAULT_CONFIG) {
   if (state.phase !== 'action' || player.ap <= 0 || player.passed) return [];
   const actions = [{ type: 'pass' }];
   for (const [coord, tile] of Object.entries(state.board)) {
-    if (tile.explored && tile.kind === 'land' && !tile.building && tile.owner !== 'black') {
+    if (tile.explored && tile.kind === 'land' && !tile.building && tile.owner !== 'black' && hasAdjacentControlledTerritory(state, tile.coord, player.id)) {
       for (const building of player.hand) {
         const cost = config.buildings[building]?.build;
         if (cost && canPay(player.resources, cost)) actions.push({ type: 'build', at: tile.coord, building });
@@ -470,6 +476,7 @@ function applyCommand(input, command, config = DEFAULT_CONFIG) {
       assert(target && target.explored && target.kind === 'land', 'building requires explored ordinary land');
       assert(!target.building, 'tile already has a building');
       assert(target.owner !== 'black' && target.owner !== 'black_hq', 'cannot build on black land');
+      assert(hasAdjacentControlledTerritory(state, target.coord, player.id), 'build requires adjacent controlled territory');
       assert(player.hand.includes(action.building), 'building card is not in hand');
       const cost = config.buildings[action.building].build;
       assert(canPay(player.resources, cost), 'not enough resources');
