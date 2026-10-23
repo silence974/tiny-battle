@@ -140,7 +140,7 @@ test('action phase is P1-to-P4 round robin rather than one seat spending all AP'
   state = command(state, 'p3', { type: 'pass' });
   state = command(state, 'p4', { type: 'pass' });
   assert.equal(state.phase, 'combat');
-  assert.equal(state.players[0].passed, true);
+  assert.equal(state.players.every((player) => player.passed), false);
 });
 
 test('action pass persists through the phase and skips that player on later turns', () => {

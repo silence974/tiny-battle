@@ -515,6 +515,7 @@ test('action phase keeps build, dispatch, and recruit entries visible when unava
   assert.match(app, /if \(!canAct && \(state\.actionMode \|\| state\.buildDraft \|\| state\.dispatchDraft \|\| state\.recruitDraft\)\)/);
   assert.match(app, /status\.textContent = ended[\s\S]*player\.passed \? 'PASS'/);
   assert.match(app, /player\?\.passed/);
+  assert.match(app, /passedClass = !ended && player\?\.passed/);
   assert.match(css, /\.action-entry:disabled\s*\{[^}]*background:\s*var\(--ef-rule\)[^}]*opacity:\s*\.55/s);
 });
 

@@ -483,7 +483,7 @@ test('real transport broadcast loopback routes targeted state and commands for h
   }
   assert.equal(game.seq, 4);
   assert.equal(game.phase, 'combat');
-  assert.equal(game.players.every((player) => player.passed), true);
+  assert.equal(game.players.every((player) => player.passed), false);
   assert.equal(snapshots.size, 4);
   assert.equal([...snapshots.values()].every((snapshot) => snapshot.seq === 4), true, JSON.stringify([...received.entries()]));
   const resynced = await players[0].transport.requestSnapshot();

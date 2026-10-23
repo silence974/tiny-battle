@@ -429,7 +429,12 @@ function nextActive(state) {
       return;
     }
   }
+  enterCombat(state);
+}
+
+function enterCombat(state) {
   state.phase = 'combat';
+  for (const player of state.players) player.passed = false;
 }
 
 function actionCycleComplete(state) {
@@ -522,7 +527,7 @@ function applyCommand(input, command, config = DEFAULT_CONFIG) {
       player.ap -= 1;
     } else assert(false, `unknown action: ${action.type}`);
 
-    if (actionCycleComplete(state)) state.phase = 'combat';
+    if (actionCycleComplete(state)) enterCombat(state);
     else nextActive(state);
   }
 
@@ -839,7 +844,7 @@ function advance(input, config = DEFAULT_CONFIG) {
     state.activeSeat = 1;
     for (const player of state.players) player.purchase = { faceUp: 0, blind: 0, passed: false };
   } else if (state.phase === 'action') {
-    if (state.players.every((player) => player.ap <= 0 || player.passed)) state.phase = 'combat';
+    if (state.players.every((player) => player.ap <= 0 || player.passed)) enterCombat(state);
   } else if (state.phase === 'combat') {
     resolveCombat(state, config);
     if (!state.result) state.phase = 'black';
