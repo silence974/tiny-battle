@@ -341,6 +341,57 @@
     return Object.entries(garrison || {}).reduce((sum, [unit, count]) => sum + (count || 0) * (config.units[unit]?.power || 0), 0);
   }
 
+  function tileForceCapacity(garrison = {}, config = window.CONFIG_312) {
+    return Object.entries(garrison || {}).reduce((sum, [unit, count]) => sum + (count || 0) * (config.units[unit]?.capacity || 0), 0);
+  }
+
+  function tileGarrisonGroups(tile) {
+    if (Array.isArray(tile.garrisonGroups)) return tile.garrisonGroups.filter((group) => group?.count > 0);
+    const groups = [];
+    if (tile.explored && tile.owner && tile.owner !== 'black' && tile.garrison) {
+      const count = Object.values(tile.garrison).reduce((sum, value) => sum + (value || 0), 0);
+      if (count > 0) groups.push({
+        playerId: tile.owner,
+        kind: 'garrison',
+        forces: tile.garrison,
+        count,
+        power: tileForcePower(tile.garrison),
+        capacity: tileForceCapacity(tile.garrison),
+      });
+    }
+    if (tile.kind?.startsWith('black') && tile.blackPower > 0) groups.push({
+      playerId: 'black',
+      kind: 'black',
+      forces: { militia: tile.blackPower, guard: 0 },
+      count: tile.blackPower,
+      power: tile.blackPower,
+      capacity: 0,
+    });
+    for (const expedition of tile.expeditions || []) {
+      const forces = expedition.forces || {};
+      const count = Object.values(forces).reduce((sum, value) => sum + (value || 0), 0);
+      if (count > 0) groups.push({
+        playerId: expedition.playerId,
+        kind: 'expedition',
+        forces,
+        count,
+        power: expedition.power || tileForcePower(forces),
+        capacity: tileForceCapacity(forces),
+      });
+    }
+    return groups;
+  }
+
+  function forceGroupLabel(group) {
+    return group.playerId === 'black' ? '黑色势力' : String(group.playerId || '未知').toUpperCase();
+  }
+
+  function forceGroupClass(group) {
+    if (group.playerId === 'black') return 'force-group-black';
+    const seat = String(group.playerId || '').match(/^p([1-4])$/i)?.[1];
+    return seat ? `force-group-p${seat}` : 'force-group-other';
+  }
+
   function tileProductionLabel(production = {}) {
     const output = Object.entries(production).filter(([, amount]) => amount);
     return output.length ? output.map(([resource, amount]) => `+${amount}${RESOURCE_SHORT_LABELS[resource] || resource}`).join(' / ') : '无产出';
@@ -537,11 +588,11 @@
     return 0;
   }
 
-  function showTileDetail(tile) {
+  function showTileDetail(tile, { toggle = true } = {}) {
     const inspector = $('tile-inspector');
     if (!inspector) return;
     const coord = tile.coord.join(',');
-    if (!inspector.hidden && inspector.dataset.coord === coord) {
+    if (toggle && !inspector.hidden && inspector.dataset.coord === coord) {
       closeTileDetail();
       return;
     }
@@ -585,63 +636,81 @@
     cost.textContent = `建造要求　${resourceCostLabel(description?.cost)}`;
     const forcesPanel = $('tile-inspector-forces');
     forcesPanel.replaceChildren();
-    const forceEntries = Object.entries(tile.garrison || {}).filter(([, count]) => Number(count) > 0);
-    if (!tile.explored || !forceEntries.length) {
+    const forceGroups = tileGarrisonGroups(tile);
+    if (!forceGroups.length) {
       forcesPanel.hidden = true;
     } else {
       forcesPanel.hidden = false;
-      const forceRows = forceEntries.map(([unit, count]) => {
-        const row = document.createElement('div');
-        row.className = 'force-detail-row';
-        const line = document.createElement('div');
-        line.className = 'force-detail-line';
-        const unitConfig = window.CONFIG_312.units[unit] || {};
-        const copy = document.createElement('div');
-        copy.className = 'force-detail-copy';
-        const unitLabel = document.createElement('span');
-        unitLabel.className = 'force-detail-unit';
-        unitLabel.textContent = UNIT_LABELS[unit] || unit;
-        const meta = document.createElement('span');
-        meta.className = 'force-detail-meta';
-        for (const [label, value] of [['战力', unitConfig.power ?? '—'], ['产能', unitConfig.capacity ?? '—']]) {
-          const stat = document.createElement('span');
-          stat.className = 'force-detail-stat';
-          stat.textContent = `${label} ${value}`;
-          meta.append(stat);
-        }
-        copy.append(unitLabel, meta);
-        const quantity = document.createElement('strong');
-        quantity.className = 'force-detail-quantity';
-        quantity.setAttribute('aria-label', `${UNIT_LABELS[unit] || unit}人数 ${count}`);
-        quantity.textContent = `${count}人`;
-        if (state.actionMode === 'dispatch' && dispatchCanTake(tile.coord)) {
+      forceGroups.forEach((group) => {
+        const groupNode = document.createElement('section');
+        groupNode.className = `force-detail-group ${forceGroupClass(group)}`;
+        groupNode.setAttribute('aria-label', `${forceGroupLabel(group)}驻兵`);
+        const label = document.createElement('strong');
+        label.className = 'force-detail-group-label';
+        label.textContent = forceGroupLabel(group);
+        const body = document.createElement('div');
+        body.className = 'force-detail-group-body';
+        const groupControls = document.createElement('div');
+        groupControls.className = 'force-detail-group-controls';
+        const canAdjust = group.playerId === state.enginePlayerId
+          && state.actionMode === 'dispatch'
+          && dispatchCanTake(tile.coord);
+        groupControls.hidden = !canAdjust;
+        const forceEntries = Object.entries(group.forces || {}).filter(([, count]) => Number(count) > 0);
+        forceEntries.forEach(([unit, count]) => {
+          const line = document.createElement('div');
+          line.className = 'force-detail-line';
+          const unitConfig = window.CONFIG_312.units[unit] || {};
+          const copy = document.createElement('div');
+          copy.className = 'force-detail-copy';
+          const unitLabel = document.createElement('span');
+          unitLabel.className = 'force-detail-unit';
+          unitLabel.textContent = group.playerId === 'black' ? '黑色兵力' : (UNIT_LABELS[unit] || unit);
+          const meta = document.createElement('span');
+          meta.className = 'force-detail-meta';
+          for (const [metaLabel, value] of [['战力', group.playerId === 'black' ? 1 : unitConfig.power ?? '—'], ['产能', group.playerId === 'black' ? 0 : unitConfig.capacity ?? '—']]) {
+            const stat = document.createElement('span');
+            stat.className = 'force-detail-stat';
+            stat.textContent = `${metaLabel} ${value}`;
+            meta.append(stat);
+          }
+          copy.append(unitLabel, meta);
+          const quantity = document.createElement('strong');
+          quantity.className = 'force-detail-quantity';
+          quantity.setAttribute('aria-label', `${unitLabel.textContent}人数 ${count}`);
+          quantity.textContent = `${count}人`;
           const controls = document.createElement('span');
           controls.className = 'force-detail-controls';
-          const minus = document.createElement('button');
-          minus.type = 'button';
-          minus.className = 'force-detail-adjust';
-          minus.textContent = '−';
-          const selectedCount = state.dispatchDraft?.allocations?.[coordKey(tile.coord)]?.[unit] || 0;
-          minus.disabled = selectedCount <= 0;
-          minus.setAttribute('aria-label', `减少${UNIT_LABELS[unit] || unit}`);
-          minus.onclick = () => changeDispatchForce(tile.coord, unit, -1);
-          const plus = document.createElement('button');
-          plus.type = 'button';
-          plus.className = 'force-detail-adjust';
-          plus.textContent = '+';
-          plus.disabled = selectedCount >= (tile.garrison?.[unit] || 0);
-          plus.setAttribute('aria-label', `增加${UNIT_LABELS[unit] || unit}`);
-          plus.onclick = () => changeDispatchForce(tile.coord, unit, 1);
-          controls.append(minus, plus);
-          row.append(copy, quantity);
-          line.append(row, controls);
-        } else {
-          row.append(copy, quantity);
-          line.append(row);
-        }
-        return line;
+          controls.hidden = !canAdjust;
+          if (canAdjust) {
+            const minus = document.createElement('button');
+            minus.type = 'button';
+            minus.className = 'force-detail-adjust';
+            minus.textContent = '−';
+            const selectedCount = state.dispatchDraft?.allocations?.[coordKey(tile.coord)]?.[unit] || 0;
+            minus.disabled = selectedCount <= 0;
+            minus.setAttribute('aria-label', `减少${UNIT_LABELS[unit] || unit}`);
+            minus.onclick = () => changeDispatchForce(tile.coord, unit, -1);
+            const plus = document.createElement('button');
+            plus.type = 'button';
+            plus.className = 'force-detail-adjust';
+            plus.textContent = '+';
+            plus.disabled = selectedCount >= (tile.garrison?.[unit] || 0);
+            plus.setAttribute('aria-label', `增加${UNIT_LABELS[unit] || unit}`);
+            plus.onclick = () => changeDispatchForce(tile.coord, unit, 1);
+            controls.append(minus, plus);
+          }
+          line.append(copy, quantity);
+          body.append(line);
+          groupControls.append(controls);
+        });
+        const total = document.createElement('small');
+        total.className = 'force-detail-group-total';
+        total.textContent = `总计　人数 ${group.count}　战力 ${group.power}　产能 ${group.capacity}`;
+        body.append(total);
+        groupNode.append(label, body, groupControls);
+        forcesPanel.append(groupNode);
       });
-      forcesPanel.append(...forceRows);
     }
     inspector.hidden = false;
   }
@@ -938,7 +1007,7 @@
     else draft.allocations[coordKey(coord)] = current;
     updateDispatchAction();
     renderDispatchSurface(state.snapshot?.legalActions || []);
-    showTileDetail(source);
+    showTileDetail(source, { toggle: false });
   }
 
   function clearDispatchDraft({ refresh = true } = {}) {
@@ -1092,6 +1161,53 @@
     container.append(panel);
   }
 
+  function renderDispatchRouteOverlay(board, route, visible) {
+    board.querySelector('.dispatch-route-overlay')?.remove();
+    if (!visible || !Array.isArray(route) || route.length < 2) return;
+    const boardRect = board.getBoundingClientRect();
+    const points = route.map((coord) => {
+      const tile = [...board.querySelectorAll('.tile')].find((candidate) => candidate.dataset.coord === coordKey(coord));
+      if (!tile) return null;
+      const rect = tile.getBoundingClientRect();
+      return `${rect.left - boardRect.left + rect.width / 2},${rect.top - boardRect.top + rect.height / 2}`;
+    }).filter(Boolean);
+    if (points.length < 2) return;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.classList.add('dispatch-route-overlay');
+    svg.setAttribute('viewBox', `0 0 ${Math.max(1, boardRect.width)} ${Math.max(1, boardRect.height)}`);
+    svg.setAttribute('aria-hidden', 'true');
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.id = 'dispatch-route-arrow';
+    marker.setAttribute('markerWidth', '8');
+    marker.setAttribute('markerHeight', '8');
+    marker.setAttribute('refX', '7');
+    marker.setAttribute('refY', '4');
+    marker.setAttribute('orient', 'auto');
+    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    arrow.setAttribute('d', 'M 0 0 L 8 4 L 0 8 z');
+    arrow.setAttribute('fill', '#f6e14f');
+    marker.append(arrow);
+    defs.append(marker);
+    const outer = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    outer.setAttribute('points', points.join(' '));
+    outer.setAttribute('fill', 'none');
+    outer.setAttribute('stroke', '#161616');
+    outer.setAttribute('stroke-width', '10');
+    outer.setAttribute('stroke-linecap', 'round');
+    outer.setAttribute('stroke-linejoin', 'round');
+    const inner = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    inner.setAttribute('points', points.join(' '));
+    inner.setAttribute('fill', 'none');
+    inner.setAttribute('stroke', '#f6e14f');
+    inner.setAttribute('stroke-width', '4');
+    inner.setAttribute('stroke-linecap', 'round');
+    inner.setAttribute('stroke-linejoin', 'round');
+    inner.setAttribute('marker-end', 'url(#dispatch-route-arrow)');
+    svg.append(defs, outer, inner);
+    board.append(svg);
+  }
+
   function renderBoard(snapshot) {
     const buildMode = state.actionMode === 'build' && snapshot.phase === 'action';
     const dispatchMode = state.actionMode === 'dispatch' && snapshot.phase === 'action';
@@ -1099,7 +1215,8 @@
     const dispatchStarts = dispatchStartActions(snapshot.legalActions || []);
     const dispatchRoute = dispatchRouteCoords(state.dispatchDraft);
     const dispatchNext = new Set(dispatchNextCoords(state.dispatchDraft).map(coordKey));
-    $('board').replaceChildren(...snapshot.board.map((tile) => {
+    const board = $('board');
+    board.replaceChildren(...snapshot.board.map((tile) => {
       const cell = document.createElement('div');
       cell.className = 'tile';
       cell.dataset.coord = coordKey(tile.coord);
@@ -1151,6 +1268,7 @@
       });
       return cell;
     }));
+    renderDispatchRouteOverlay(board, dispatchRoute, dispatchMode && state.dispatchDraft?.endLocked);
   }
 
   function formatPhase(phase) { return PHASE_LABELS[phase] || phase || '—'; }
@@ -1496,7 +1614,17 @@
       { type: 'dispatch', label: '派遣', actions: actions.filter((action) => action.type === 'dispatch' || action.type === 'deploy') },
       { type: 'recruit', label: '招募', actions: actions.filter((action) => action.type === 'recruit') },
     ];
-    actionsPanel.replaceChildren(...typeGroups.map((group) => {
+    const layout = document.createElement('div');
+    layout.className = 'action-command-layout';
+    const menu = document.createElement('div');
+    menu.className = 'action-command-menu';
+    menu.setAttribute('aria-label', '行动类型');
+    const workspace = document.createElement('div');
+    workspace.className = 'action-workspace';
+    workspace.setAttribute('aria-label', '当前行动操作');
+    layout.append(menu, workspace);
+    actionsPanel.replaceChildren(layout);
+    typeGroups.forEach((group) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'action-entry';
@@ -1516,8 +1644,8 @@
         if (state.actionMode === 'dispatch') renderBoard(state.snapshot);
         renderActions(actions);
       });
-      return button;
-    }));
+      menu.append(button);
+    });
     const selectedGroup = typeGroups.find((group) => group.type === state.actionMode);
     if (selectedGroup && selectedGroup.type !== 'build') {
       const subactions = document.createElement('div');
@@ -1535,7 +1663,7 @@
         button.addEventListener('click', () => void submitAction(action));
         subactions.append(button);
       }
-      actionsPanel.append(subactions);
+      workspace.append(subactions);
     }
     if (state.actionMode === 'build') {
       const confirm = document.createElement('button');
@@ -1545,14 +1673,14 @@
       confirm.textContent = '确认建造';
       confirm.disabled = !canAct || !state.buildDraft?.action;
       confirm.addEventListener('click', () => void submitBuildDraft(actions));
-      actionsPanel.append(confirm);
+      workspace.append(confirm);
     }
     if (state.actionMode === 'dispatch') {
-      renderDispatchSummary(actionsPanel, canAct);
+      renderDispatchSummary(workspace, canAct);
       const endpoint = document.createElement('button');
       endpoint.id = 'dispatch-confirm-endpoint';
       endpoint.type = 'button';
-      endpoint.className = 'secondary-button';
+      endpoint.className = 'secondary-button dispatch-confirm-endpoint';
       endpoint.textContent = '确认终点';
       endpoint.disabled = !canAct || !state.dispatchDraft?.route?.length;
       endpoint.onclick = () => {
@@ -1561,7 +1689,7 @@
         updateDispatchAction();
         renderDispatchSurface(actions);
       };
-      actionsPanel.append(endpoint);
+      workspace.append(endpoint);
       const confirm = document.createElement('button');
       confirm.id = 'dispatch-confirm';
       confirm.type = 'button';
@@ -1570,16 +1698,16 @@
       confirm.disabled = !canAct || !state.dispatchDraft?.endLocked || !state.dispatchDraft?.action
         || dispatchTotals(state.dispatchDraft.allocations).militia + dispatchTotals(state.dispatchDraft.allocations).guard < 1;
       confirm.onclick = () => void submitDispatchDraft(actions);
-      actionsPanel.append(confirm);
+      workspace.append(confirm);
     }
-    if (state.actionMode === 'recruit') renderRecruitPanel(actionsPanel, actions, canAct);
+    if (state.actionMode === 'recruit') renderRecruitPanel(workspace, actions, canAct);
     if (state.actionMode) {
       const cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.className = 'secondary-button';
       cancel.textContent = '取消';
       cancel.onclick = () => clearActionSelection();
-      actionsPanel.append(cancel);
+      workspace.append(cancel);
     }
     const passAction = actions.find((action) => action.type === 'pass');
     actionPass.hidden = !passAction;

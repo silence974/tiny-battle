@@ -132,8 +132,9 @@ test('tile inspector keeps the clean overlay content contract', () => {
 test('garrison details show only staffed unit types with structured metadata', () => {
   const app = read('app.js');
   const css = read('styles.css');
-  const detail = app.slice(app.indexOf("const forcesPanel = $('tile-inspector-forces')"), app.indexOf('inspector.hidden = false;', app.indexOf("const forcesPanel = $('tile-inspector-forces')")));
-  assert.match(detail, /Object\.entries\(tile\.garrison \|\| \{\}\)\.filter\(\(\[, count\]\) => Number\(count\) > 0\)/);
+  const detailStart = app.indexOf('function showTileDetail');
+  const detail = app.slice(detailStart, app.indexOf('inspector.hidden = false;', detailStart));
+  assert.match(detail, /tileGarrisonGroups\(tile\)/);
   assert.match(detail, /force-detail-copy/);
   assert.match(detail, /force-detail-meta/);
   assert.match(detail, /force-detail-quantity/);
@@ -144,7 +145,14 @@ test('garrison details show only staffed unit types with structured metadata', (
   assert.match(css, /\.force-detail-meta\s*\{[^}]*display:\s*flex/s);
   assert.match(css, /\.force-detail-quantity\s*\{[^}]*text-align:\s*right/s);
   assert.match(detail, /force-detail-line/);
-  assert.match(detail, /line\.append\(row, controls\)/);
+  assert.match(detail, /forceGroups/);
+  assert.match(detail, /force-detail-group-label/);
+  assert.match(detail, /groupNode\.append\(label, body, groupControls\)/);
+  assert.match(detail, /line\.append\(copy, quantity\)/);
+  assert.match(css, /\.force-detail-group\s*\{[^}]*position:\s*relative/);
+  assert.match(css, /\.force-detail-group-label\s*\{[^}]*position:\s*absolute[^}]*white-space:\s*nowrap/s);
+  assert.match(css, /\.force-detail-group-controls\s*\{[^}]*position:\s*absolute[^}]*transform:\s*translateX/s);
+  assert.match(css, /\.tile-inspector-forces\s*\{[^}]*overflow:\s*visible/s);
   assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/s);
 });
 
@@ -517,6 +525,33 @@ test('action phase keeps build, dispatch, and recruit entries visible when unava
   assert.match(app, /player\?\.passed/);
   assert.match(app, /passedClass = !ended && player\?\.passed/);
   assert.match(css, /\.action-entry:disabled\s*\{[^}]*background:\s*var\(--ef-rule\)[^}]*opacity:\s*\.55/s);
+});
+
+test('selected action operations render in a right-side workspace beside the action entries', () => {
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(app, /action-command-layout/);
+  assert.match(app, /action-command-menu/);
+  assert.match(app, /action-workspace/);
+  assert.match(app, /layout\.append\(menu, workspace\)/);
+  assert.match(app, /workspace\.append/);
+  assert.match(css, /\.action-command-layout\s*\{[^}]*grid-template-columns:\s*minmax\(6rem, 7rem\) minmax\(0, 1fr\)/s);
+  assert.match(css, /\.action-workspace\s*\{[^}]*border-left:\s*1px\s+solid\s+var\(--ef-rule\)/s);
+  assert.match(css, /@media \(max-width: 700px\)[\s\S]*\.action-command-layout\s*\{[^}]*grid-template-columns:\s*minmax\(5.5rem, 6.5rem\) minmax\(0, 1fr\)/s);
+});
+
+test('dispatch confirmation and route feedback stay explicit without closing tile details', () => {
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(app, /endpoint\.disabled = !canAct \|\| !state\.dispatchDraft\?\.route\?\.length/);
+  assert.match(app, /function renderDispatchRouteOverlay/);
+  assert.match(app, /dispatch-route-overlay/);
+  assert.match(app, /marker-end/);
+  assert.match(app, /showTileDetail\(source, \{ toggle: false \}\)/);
+  assert.match(app, /if \(toggle && !inspector\.hidden && inspector\.dataset\.coord === coord\)/);
+  assert.match(css, /\.dispatch-confirm-endpoint:disabled\s*\{[^}]*background:\s*var\(--ef-rule\)/s);
+  assert.match(css, /\.dispatch-route-overlay\s*\{[^}]*pointer-events:\s*none/s);
+  assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto auto/s);
 });
 
 test('action skip uses the short label and clears the action selection contract', () => {

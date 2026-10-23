@@ -84,6 +84,38 @@ test('initial state is deterministic and snapshots hide another player hand', ()
   assert.deepEqual(farmSnapshot.production, { gold: 0, wood: 0, food: 5 });
 });
 
+test('snapshots group stationed forces, expeditions, and black power by faction', () => {
+  const state = freshGame();
+  const farm = setControlledTile(state, 'p1', [1, 1], { militia: 1, guard: 1 });
+  farm.explored = true;
+  farm.kind = 'land';
+  state.expeditions = [
+    { playerId: 'p1', target: [1, 1], forces: { militia: 1, guard: 0 }, power: 1, route: [] },
+    { playerId: 'p2', target: [1, 1], forces: { militia: 0, guard: 1 }, power: 2, route: [] },
+  ];
+  const grouped = Engine.snapshot(state, 'p1').board.find((tile) => tile.coord.join(',') === '1,1');
+  assert.deepEqual(grouped.garrisonGroups.map((group) => [group.playerId, group.kind, group.count, group.power, group.capacity]), [
+    ['p1', 'mixed', 3, 4, 5],
+    ['p2', 'expedition', 1, 2, 1],
+  ]);
+  assert.deepEqual(grouped.expeditions[0].forces, { militia: 1, guard: 0 });
+
+  const black = state.board['2,2'];
+  black.kind = 'black';
+  black.explored = true;
+  black.owner = 'black';
+  black.blackPower = 3;
+  const blackSnapshot = Engine.snapshot(state, 'p1').board.find((tile) => tile.coord.join(',') === '2,2');
+  assert.deepEqual(blackSnapshot.garrisonGroups, [{
+    playerId: 'black',
+    kind: 'black',
+    forces: { militia: 3, guard: 0 },
+    count: 3,
+    power: 3,
+    capacity: 0,
+  }]);
+});
+
 test('advance follows exploration, production, purchase, action, combat, and black order', () => {
   let state = freshGame();
   assert.equal(state.phase, 'exploration');

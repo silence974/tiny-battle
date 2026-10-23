@@ -41,6 +41,12 @@ function unitPower(forces, config) {
   }, 0);
 }
 
+function unitCapacity(forces, config) {
+  return Object.entries(forces || {}).reduce((sum, [unit, count]) => {
+    return sum + (config.units[unit]?.capacity || 0) * (count || 0);
+  }, 0);
+}
+
 function unitCount(forces) {
   return Object.values(forces || {}).reduce((sum, count) => sum + (count || 0), 0);
 }
@@ -247,18 +253,54 @@ function snapshot(input, viewerId, config = DEFAULT_CONFIG) {
     phase: state.phase,
     activeSeat: state.activeSeat,
     seq: state.seq,
-    board: Object.values(state.board).map((tile) => ({
-      coord: tile.coord,
-      kind: tile.kind,
-      explored: tile.explored,
-      owner: tile.owner,
-      controlled: tile.controlled,
-      garrison: tile.explored ? clone(tile.garrison) : null,
-      building: tile.explored ? tile.building : null,
-      production: tile.explored ? clone(currentProductionForTile(tile, config)) : null,
-      blackPower: tile.kind.startsWith('black') ? tile.blackPower : null,
-      expeditions: state.expeditions.filter((expedition) => sameCoord(expedition.target, tile.coord)).map((expedition) => ({ playerId: expedition.playerId, power: expedition.power })),
-    })),
+    board: Object.values(state.board).map((tile) => {
+      const expeditions = state.expeditions
+        .filter((expedition) => sameCoord(expedition.target, tile.coord))
+        .map((expedition) => ({
+          playerId: expedition.playerId,
+          power: expedition.power,
+          forces: clone(expedition.forces),
+        }));
+      const groups = new Map();
+      const addGroup = (playerId, forces, kind = 'garrison') => {
+        if (!playerId || !unitCount(forces)) return;
+        const existing = groups.get(playerId);
+        if (existing) {
+          existing.forces = addForces(existing.forces, forces);
+          existing.power += unitPower(forces, config);
+          existing.capacity += unitCapacity(forces, config);
+          existing.count += unitCount(forces);
+          if (kind === 'expedition') existing.kind = 'mixed';
+          return;
+        }
+        groups.set(playerId, {
+          playerId,
+          kind,
+          forces: clone(forces),
+          count: unitCount(forces),
+          power: unitPower(forces, config),
+          capacity: kind === 'black' ? 0 : unitCapacity(forces, config),
+        });
+      };
+      if (tile.explored && tile.owner && tile.owner !== 'black') addGroup(tile.owner, tile.garrison);
+      if (tile.kind.startsWith('black') && tile.blackPower > 0) {
+        addGroup('black', { militia: tile.blackPower, guard: 0 }, 'black');
+      }
+      expeditions.forEach((expedition) => addGroup(expedition.playerId, expedition.forces, 'expedition'));
+      return {
+        coord: tile.coord,
+        kind: tile.kind,
+        explored: tile.explored,
+        owner: tile.owner,
+        controlled: tile.controlled,
+        garrison: tile.explored ? clone(tile.garrison) : null,
+        garrisonGroups: [...groups.values()],
+        building: tile.explored ? tile.building : null,
+        production: tile.explored ? clone(currentProductionForTile(tile, config)) : null,
+        blackPower: tile.kind.startsWith('black') ? tile.blackPower : null,
+        expeditions,
+      };
+    }),
     players: state.players.map((player) => {
       const visible = {
         id: player.id,
