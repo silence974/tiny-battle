@@ -211,10 +211,12 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .phase-steps { display: grid; gap: 0; }
 .phase-step { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; gap: .35rem .65rem; align-items: center; min-height: 48px; padding: .42rem .5rem; color: var(--ef-ink-2); border-left: 1px solid var(--ef-rule); border-bottom: 1px solid var(--ef-rule); }
 .phase-step:first-child { border-top: 1px solid var(--ef-rule); }
-.phase-step-header { display: grid; grid-column: 1 / -1; grid-template-columns: 2rem minmax(0, 1fr); align-items: center; gap: .35rem .65rem; width: 100%; min-width: 0; padding: 0; color: inherit; border: 0; background: transparent; clip-path: none; text-align: left; }
+.phase-step-header { display: grid; grid-column: 1 / -1; grid-template-columns: 2rem minmax(0, 1fr) 1rem; align-items: center; gap: .35rem .65rem; width: 100%; min-width: 0; padding: 0; color: inherit; border: 0; background: transparent; clip-path: none; text-align: left; }
 .phase-step-header:hover { color: var(--ef-ink); background: transparent; }
 .phase-step-dot { display: grid; place-items: center; width: 1.45rem; height: 1.45rem; color: var(--ef-ink-2); border: 1px solid var(--ef-rule); background: var(--ef-panel); font-family: "Saira", sans-serif; font-size: .66rem; font-weight: 780; font-variant-numeric: tabular-nums; }
 .phase-step-header > span:nth-child(2) { display: grid; gap: .1rem; min-width: 0; }
+.phase-step-caret { display: grid; place-items: center; color: var(--ef-ink-2); font-family: "Saira", sans-serif; font-size: .95rem; line-height: 1; transform: rotate(0deg); transition: color var(--ef-fast) var(--ef-mech), transform var(--ef-fast) var(--ef-mech); }
+.phase-step-header[aria-expanded="false"] .phase-step-caret { transform: rotate(-90deg); }
 .phase-step strong { display: block; color: var(--ef-ink-2); font-size: .73rem; }
 .phase-step-content { grid-column: 1 / -1; min-width: 0; }
 .phase-step.is-collapsed .phase-step-content { display: none; }

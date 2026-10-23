@@ -383,11 +383,15 @@ test('phase rail headers target real collapsible phase content', () => {
   const css = read('styles.css');
   for (const phase of ['exploration', 'production', 'purchase', 'action', 'combat', 'black', 'ended']) {
     assert.match(html, new RegExp(`data-phase-toggle=["']${phase}["'][^>]*aria-expanded=["']true["'][^>]*aria-controls=["']phase-content-${phase}["']`));
+    assert.match(html, new RegExp(`data-phase-toggle=["']${phase}["'][\\s\\S]*?phase-step-caret`));
     assert.match(html, new RegExp(`id=["']phase-content-${phase}["'][^>]*class=["'][^"']*phase-step-content`));
   }
   assert.match(css, /\.phase-step-header\s*\{/);
   assert.match(css, /\.phase-step-content\s*\{/);
   assert.match(css, /\.phase-step\.is-collapsed \.phase-step-content\s*\{[^}]*display:\s*none/s);
+  assert.match(html, /class=["']phase-step-caret["'][^>]*aria-hidden=["']true["']/);
+  assert.match(css, /\.phase-step-header\[aria-expanded=["']false["']\] \.phase-step-caret/);
+  assert.match(css, /transform:\s*rotate\(-90deg\)/);
   assert.match(html, /id=["']phase-content-purchase["'][\s\S]*id=["']purchase-actions["']/);
   assert.match(html, /id=["']phase-content-action["'][\s\S]*id=["']legal-actions["']/);
 });
