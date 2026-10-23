@@ -63,4 +63,4 @@
 - [x] **Step 1: Run `npm test`** and require all tests to pass.
 - [x] **Step 2: Run `node --check` for browser scripts and `git diff --check`.**
 - [x] **Step 3: Run a local browser smoke at desktop and mobile widths** confirming click collapse, auto expansion on self-turn, and actual action content visibility.
-- [ ] **Step 4: Commit and push, verify `HEAD == origin/main` and a clean worktree, then report the commit and evidence.**
+- [x] **Step 4: Commit and push, verify `HEAD == origin/main` and a clean worktree, then report the commit and evidence.**
