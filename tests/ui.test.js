@@ -394,15 +394,25 @@ test('player phase guidance is a live vertical step bar with current action hint
   assert.match(css, /\.phase-step\.is-current/);
 });
 
-test('phase rail headers target real collapsible phase content', () => {
+test('phase rail keeps only purchase and action collapsible', () => {
   const html = read('index.html');
+  const app = read('app.js');
   const css = read('styles.css');
-  for (const phase of ['exploration', 'production', 'purchase', 'action', 'combat', 'black', 'ended']) {
+  for (const phase of ['purchase', 'action']) {
     assert.match(html, new RegExp(`data-phase-toggle=["']${phase}["'][^>]*aria-expanded=["']true["'][^>]*aria-controls=["']phase-content-${phase}["']`));
     assert.match(html, new RegExp(`data-phase-toggle=["']${phase}["'][\\s\\S]*?phase-step-caret`));
     assert.match(html, new RegExp(`id=["']phase-content-${phase}["'][^>]*class=["'][^"']*phase-step-content`));
   }
+  for (const phase of ['exploration', 'production', 'combat', 'black', 'ended']) {
+    const staticHeader = html.match(new RegExp(`<div class=["']phase-step-header phase-step-static["'][^>]*role=["']heading["'][^>]*data-phase-static=["']${phase}["'][^>]*>[^\\n]*</div>`));
+    assert.ok(staticHeader, `${phase} uses a static phase header`);
+    assert.doesNotMatch(staticHeader[0], /phase-step-caret/);
+    assert.doesNotMatch(html, new RegExp(`data-phase-toggle=["']${phase}["']`));
+  }
+  assert.match(app, /if \(!toggle\) \{\s*step\.classList\.remove\('is-collapsed'\);/);
   assert.match(css, /\.phase-step-header\s*\{/);
+  assert.match(css, /\.phase-rail\s*\{[^}]*width:\s*100%[^}]*justify-content:\s*stretch/s);
+  assert.match(css, /\.phase-steps\s*\{[^}]*width:\s*100%/s);
   assert.match(css, /\.phase-step-content\s*\{/);
   assert.match(css, /\.phase-step\.is-collapsed \.phase-step-content\s*\{[^}]*display:\s*none/s);
   assert.match(html, /class=["']phase-step-caret["'][^>]*aria-hidden=["']true["']/);
@@ -497,6 +507,8 @@ test('build interaction uses one pending draft across tile-first and drag-first 
   assert.match(app, /id = 'build-confirm'/);
   assert.match(app, /clearBuildDraft\(\)/);
   assert.match(app, /item\.setAttribute\('aria-disabled', String\(item\.disabled\)\)/);
+  assert.match(app, /is-build-card-selected/);
+  assert.match(app, /item\.setAttribute\('aria-pressed', String\(selectedBuildCard\)\)/);
   assert.match(app, /cell\.dataset\.coord = coordKey\(tile\.coord\)/);
   assert.match(html, /id=["']phase-content-action["'][\s\S]*data-phase-actions=["']action["']/);
   assert.match(css, /\.tile\.is-build-target\s*\{/);
@@ -531,12 +543,25 @@ test('recruit entry supports one unit type and at most three units', () => {
   assert.match(app, /function renderRecruitPanel/);
   assert.match(app, /最多|>= 3/);
   assert.match(app, /setAttribute\('role', 'table'\)/);
+  assert.match(app, /recruit-header/);
+  assert.match(app, /role', 'columnheader'/);
+  assert.match(app, /recruit-cell/);
+  assert.match(app, /row\.setAttribute\('aria-selected', String\(selected === unit\)\)/);
+  assert.match(app, /row\.addEventListener\('keydown'/);
   assert.match(app, /const totalCost =/);
   assert.match(app, /recruit-total-cost/);
   assert.match(app, /id = 'recruit-confirm'/);
   assert.match(css, /\.recruit-panel\s*\{/);
+  assert.match(css, /\.recruit-header\s*\{/);
+  assert.match(css, /\.recruit-row\s*\{[^}]*grid-template-columns:\s*minmax\(5rem, 1\.3fr\)/s);
+  assert.match(css, /\.is-build-card-selected\s*\{/);
   assert.match(css, /\.recruit-controls\s*\{/);
   assert.match(css, /\.recruit-total-cost\s*\{/);
+});
+
+test('disabled primary actions stay visibly disabled on touch devices', () => {
+  const css = read('styles.css');
+  assert.match(css, /\.primary-button:disabled\s*,\s*\.primary-button:disabled:hover\s*\{[^}]*background:\s*var\(--ef-rule\)[^}]*opacity:\s*\.55/s);
 });
 
 test('unified stylesheet defines the light board layout and responsive panels', () => {

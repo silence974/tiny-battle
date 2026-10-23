@@ -990,23 +990,48 @@
     panel.setAttribute('role', 'table');
     const units = [...new Set(recruitActions.map((action) => action.unit))];
     const selected = state.recruitDraft?.unit;
+    const header = document.createElement('div');
+    header.className = 'recruit-header';
+    header.setAttribute('role', 'row');
+    for (const [key, label] of [['unit', '单位'], ['power', '战力'], ['capacity', '产能'], ['cost', '单兵花费']]) {
+      const cell = document.createElement('span');
+      cell.className = `recruit-cell recruit-cell-${key}`;
+      cell.setAttribute('role', 'columnheader');
+      cell.textContent = label;
+      header.append(cell);
+    }
+    panel.append(header);
     for (const unit of units) {
       const row = document.createElement('div');
       row.className = `recruit-row${selected === unit ? ' is-selected' : ''}`;
       row.setAttribute('role', 'row');
+      row.tabIndex = canAct ? 0 : -1;
+      row.setAttribute('aria-selected', String(selected === unit));
       const unitConfig = window.CONFIG_312.units[unit] || {};
-      const select = document.createElement('button');
-      select.type = 'button';
-      select.className = 'recruit-unit';
-      select.setAttribute('role', 'cell');
-      select.textContent = `${UNIT_LABELS[unit] || unit} · 战力 ${unitConfig.power ?? '—'} · 产能 ${unitConfig.capacity ?? '—'} · ${resourceCostLabel(unitConfig.recruit)}`;
-      select.disabled = !canAct;
-      select.setAttribute('aria-pressed', String(selected === unit));
-      select.onclick = () => {
+      row.setAttribute('aria-label', `${UNIT_LABELS[unit] || unit}，战力 ${unitConfig.power ?? '—'}，产能 ${unitConfig.capacity ?? '—'}，${resourceCostLabel(unitConfig.recruit)}`);
+      for (const [key, text] of [
+        ['unit', UNIT_LABELS[unit] || unit],
+        ['power', unitConfig.power ?? '—'],
+        ['capacity', unitConfig.capacity ?? '—'],
+        ['cost', resourceCostLabel(unitConfig.recruit)],
+      ]) {
+        const cell = document.createElement('span');
+        cell.className = `recruit-cell recruit-cell-${key}`;
+        cell.setAttribute('role', 'cell');
+        cell.textContent = String(text);
+        row.append(cell);
+      }
+      const select = () => {
+        if (!canAct) return;
         state.recruitDraft = { unit, count: Math.min(state.recruitDraft?.count || 1, 3), action: null };
         renderActions(actions);
       };
-      row.append(select);
+      row.addEventListener('click', select);
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        select();
+      });
       panel.append(row);
     }
     if (selected) {
@@ -1118,10 +1143,14 @@
   function syncPhaseCollapse(phase) {
     const step = document.querySelector(`.phase-step[data-phase="${phase}"]`);
     if (!step) return;
+    const toggle = step.querySelector('[data-phase-toggle]');
+    if (!toggle) {
+      step.classList.remove('is-collapsed');
+      return;
+    }
     const collapsed = state.collapsedPhases.has(phase);
     step.classList.toggle('is-collapsed', collapsed);
-    const toggle = step.querySelector('[data-phase-toggle]');
-    if (toggle) toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.setAttribute('aria-expanded', String(!collapsed));
   }
 
   function syncAllPhaseCollapse() {
@@ -1276,10 +1305,13 @@
       if (buildMode) {
         item.type = 'button';
         item.classList.add('is-build-card');
+        const selectedBuildCard = state.buildDraft?.building === card;
         const available = Boolean(state.buildDraft?.at && buildActionFor(actions, card, state.buildDraft.at))
           || buildActions(actions).some((action) => action.building === card);
         item.disabled = !available || !buildCanAct();
         item.setAttribute('aria-disabled', String(item.disabled));
+        item.setAttribute('aria-pressed', String(selectedBuildCard));
+        item.classList.toggle('is-build-card-selected', selectedBuildCard);
         item.classList.toggle('is-build-card-disabled', item.disabled);
         item.addEventListener('pointerdown', (event) => {
           if (item.disabled || event.button !== undefined && event.button !== 0) return;
