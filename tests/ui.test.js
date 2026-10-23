@@ -318,6 +318,7 @@ test('purchase phase shows full market cards, power badges, and one-shot turn au
   assert.match(css, /\.purchase-market\s*\{[^}]*grid-template-columns:\s*repeat\(2/s);
   assert.match(css, /body\.is-game-active \.purchase-market\s*\{[^}]*display:\s*flex/s);
   assert.match(css, /\.purchase-market-card\.is-selected/);
+  assert.match(css, /\.purchase-controls button:disabled\s*\{[^}]*color:\s*var\(--ef-ink-2\)[^}]*background:\s*var\(--ef-rule\)[^}]*opacity:\s*\.55/s);
   assert.match(css, /@media \(max-width: 700px\)[\s\S]*body\.is-game-active \.game-right-column\s*\{[^}]*grid-template-columns:\s*1fr/s);
   assert.match(css, /\.tile-main\s*\{[^}]*font-size:\s*(?:\.9|1)rem/s);
 });

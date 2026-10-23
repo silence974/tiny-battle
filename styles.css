@@ -284,6 +284,8 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .purchase-selection-status { margin: 0; color: var(--ef-ink-2); font-size: .68rem; line-height: 1.35; }
 .purchase-controls { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
 .purchase-controls button { min-width: 0; padding: .45rem .45rem; font-size: .68rem; }
+.purchase-controls button:disabled { cursor: not-allowed; color: var(--ef-ink-2); border-color: var(--ef-rule); background: var(--ef-rule); opacity: .55; box-shadow: none; }
+.purchase-controls button:disabled:hover { color: var(--ef-ink-2); border-color: var(--ef-rule); background: var(--ef-rule); }
 .purchase-controls #purchase-pass { grid-column: 1 / -1; }
 .actions { display: grid; gap: .45rem; margin-top: .8rem; }
 .action-button { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; text-align: left; }
