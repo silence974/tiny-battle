@@ -387,9 +387,9 @@
   }
 
   function forceGroupClass(group) {
-    if (group.playerId === 'black') return 'force-group-black';
+    if (group.playerId === 'black') return 'force-detail-group-black';
     const seat = String(group.playerId || '').match(/^p([1-4])$/i)?.[1];
-    return seat ? `force-group-p${seat}` : 'force-group-other';
+    return seat ? `force-detail-group-p${seat}` : 'force-detail-group-other';
   }
 
   function tileProductionLabel(production = {}) {
@@ -1365,8 +1365,14 @@
     }
     const resourceSummary = $('resources');
     if (resourceSummary) resourceSummary.textContent = JSON.stringify(resources);
-    const ap = $('ap-value');
-    if (ap) ap.textContent = player?.ap ?? 0;
+    const actionStepAp = $('action-step-ap');
+    if (actionStepAp) {
+      const inActionPhase = state.snapshot?.phase === 'action';
+      actionStepAp.hidden = !inActionPhase;
+      actionStepAp.textContent = inActionPhase
+        ? `AP ${player?.ap ?? 0} / ${window.CONFIG_312?.start?.ap ?? 3}`
+        : '';
+    }
   }
 
   function renderGameSessionMeta(player) {
@@ -1588,16 +1594,19 @@
   function renderActions(actions) {
     renderPurchaseActions(actions);
     const actionsPanel = $('legal-actions');
-    const actionAp = $('action-ap');
     const actionPass = $('action-pass');
+    const actionPassTitle = $('action-pass-title');
+    const actionPassMeta = $('action-pass-meta');
+    const actionPassMark = $('action-pass-mark');
     const currentPhase = state.snapshot?.phase || document.querySelector('.phase-step.is-current')?.dataset.phase;
     if (currentPhase !== 'action') {
       state.actionMode = null;
       state.buildDraft = null;
       state.dispatchDraft = null;
       state.recruitDraft = null;
-      actionAp.hidden = true;
       actionPass.hidden = true;
+      const actionPhaseContent = $('phase-content-action');
+      if (actionPhaseContent && actionPass.parentElement !== actionPhaseContent) actionPhaseContent.append(actionPass);
     }
     if (currentPhase === 'purchase') {
       actionsPanel.replaceChildren();
@@ -1620,9 +1629,6 @@
       state.dispatchDraft = null;
     }
     const me = state.snapshot?.players?.find((player) => player.id === state.enginePlayerId) || state.snapshot?.players?.[0];
-    const totalAp = window.CONFIG_312?.start?.ap ?? 3;
-    actionAp.hidden = false;
-    actionAp.textContent = `AP ${me?.ap ?? 0} / ${totalAp}`;
     const canAct = me?.seat === state.snapshot?.activeSeat && !state.phaseNoticePlaying && state.phaseNoticeQueue.length === 0;
     if (!canAct && (state.actionMode || state.buildDraft || state.dispatchDraft || state.recruitDraft)) {
       clearActionSelection({ refresh: false });
@@ -1634,22 +1640,64 @@
     ];
     const layout = document.createElement('div');
     layout.className = 'action-command-layout';
+    const head = document.createElement('div');
+    head.className = 'action-command-head';
+    const headEyebrow = document.createElement('p');
+    headEyebrow.className = 'action-command-eyebrow';
+    headEyebrow.textContent = '// PROCEDURE STACK / 04';
+    const headTitle = document.createElement('h3');
+    headTitle.textContent = '行动记录';
+    const titleRow = document.createElement('div');
+    titleRow.className = 'action-command-title-row';
+    const headMark = document.createElement('span');
+    headMark.className = 'action-command-head-mark';
+    headMark.textContent = 'D+';
+    titleRow.append(headTitle, headMark);
+    head.append(headEyebrow, titleRow);
     const menu = document.createElement('div');
     menu.className = 'action-command-menu';
     menu.setAttribute('aria-label', '行动类型');
+    menu.hidden = Boolean(me?.passed);
     const workspace = document.createElement('div');
     workspace.className = 'action-workspace';
     workspace.setAttribute('aria-label', '当前行动操作');
-    layout.append(menu, workspace);
+    const footer = document.createElement('div');
+    footer.className = 'action-command-footer';
+    const status = document.createElement('p');
+    status.className = 'action-pass-status';
+    status.hidden = !me?.passed;
+    status.textContent = '本轮已跳过，等待其他玩家行动';
+    status.setAttribute('aria-live', 'polite');
+    layout.append(head, menu, footer);
     actionsPanel.replaceChildren(layout);
-    typeGroups.forEach((group) => {
+    footer.append(status, actionPass);
+    let activeRecord = null;
+    const actionCodes = { build: 'BUILD MODULE', dispatch: 'DISPATCH / ACTIVE', recruit: 'RECRUIT MODULE' };
+    typeGroups.forEach((group, index) => {
+      const record = document.createElement('div');
+      record.className = 'action-record';
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'action-entry';
       button.disabled = !canAct || !group.actions.length;
       button.dataset.actionType = group.type;
       button.setAttribute('aria-pressed', String(state.actionMode === group.type));
-      button.textContent = group.label;
+      const number = document.createElement('span');
+      number.className = 'action-entry-index';
+      number.textContent = String(index + 1).padStart(2, '0');
+      const copy = document.createElement('span');
+      copy.className = 'action-entry-copy';
+      const title = document.createElement('span');
+      title.className = 'action-entry-title';
+      title.textContent = group.label;
+      const meta = document.createElement('span');
+      meta.className = 'action-entry-meta';
+      meta.textContent = actionCodes[group.type];
+      copy.append(title, meta);
+      const mark = document.createElement('span');
+      mark.className = 'action-entry-mark';
+      mark.textContent = state.actionMode === group.type ? '−' : '+';
+      button.append(number, copy, mark);
       button.addEventListener('click', () => {
         state.actionMode = group.type;
         if (state.actionMode !== 'build') clearBuildDraft({ refresh: false });
@@ -1662,8 +1710,11 @@
         if (state.actionMode === 'dispatch') renderBoard(state.snapshot);
         renderActions(actions);
       });
-      menu.append(button);
+      record.append(button);
+      if (state.actionMode === group.type) activeRecord = record;
+      menu.append(record);
     });
+    activeRecord?.append(workspace);
     const selectedGroup = typeGroups.find((group) => group.type === state.actionMode);
     if (selectedGroup && selectedGroup.type !== 'build') {
       const subactions = document.createElement('div');
@@ -1727,11 +1778,25 @@
       cancel.onclick = () => clearActionSelection();
       workspace.append(cancel);
     }
+    if (me?.passed) {
+      actionPass.hidden = false;
+      actionPass.disabled = true;
+      actionPass.className = 'action-entry action-pass is-passed';
+      actionPass.setAttribute('aria-label', '本轮已跳过');
+      actionPassTitle.textContent = 'PASS';
+      actionPassMeta.textContent = 'ALL AP USED';
+      actionPassMark.textContent = '—';
+      actionPass.onclick = null;
+      return;
+    }
     const passAction = actions.find((action) => action.type === 'pass');
     actionPass.hidden = !passAction;
     actionPass.disabled = !canAct || !passAction;
+    actionPass.className = 'action-entry action-pass';
     actionPass.setAttribute('aria-label', '跳过本轮行动');
-    actionPass.textContent = '跳过';
+    actionPassTitle.textContent = '跳过';
+    actionPassMeta.textContent = 'USE ALL REMAINING AP';
+    actionPassMark.textContent = '→';
     actionPass.onclick = async () => {
       if (!passAction) return;
       const accepted = await submitAction(passAction);

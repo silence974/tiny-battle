@@ -18,7 +18,6 @@
       <div id="game-session-meta" class="game-session-meta" hidden aria-label="当前房间与玩家信息">
         <span>ROOM <strong id="game-room-code">—</strong></span>
         <span id="player-identity">玩家 —</span>
-        <span class="ap-badge">AP <strong id="ap-value">—</strong></span>
         <span id="resource-strip" class="sr-only" aria-hidden="true"><span id="resource-gold">—</span><span id="resource-wood">—</span><span id="resource-food">—</span></span>
         <span id="resources" class="sr-only" aria-hidden="true"></span>
       </div>
@@ -177,11 +176,17 @@
                 </div>
               </div>
               <div class="phase-step" data-phase="action">
-                <button class="phase-step-header" type="button" data-phase-toggle="action" aria-expanded="true" aria-controls="phase-content-action"><span class="phase-step-dot">4</span><span><span class="phase-label">行动</span><strong>建设与调度</strong></span><span class="phase-step-caret" aria-hidden="true">⌄</span></button>
+                <button class="phase-step-header phase-step-header-action" type="button" data-phase-toggle="action" aria-expanded="true" aria-controls="phase-content-action"><span class="phase-step-dot">4</span><span><span class="phase-label">行动</span><strong>建设与调度</strong></span><span id="action-step-ap" class="action-step-ap" hidden>AP — / —</span><span class="phase-step-caret" aria-hidden="true">⌄</span></button>
                 <div id="phase-content-action" class="phase-step-content">
-                  <div id="action-ap" class="action-ap-readout" aria-label="行动点" hidden></div>
                   <div id="legal-actions" class="phase-step-actions actions" data-phase-actions="action" aria-label="当前阶段可执行行动"></div>
-                  <button id="action-pass" class="secondary-button action-pass" type="button" aria-label="跳过本轮行动" hidden>跳过</button>
+                  <button id="action-pass" class="action-entry action-pass" type="button" aria-label="跳过本轮行动" hidden>
+                    <span class="action-entry-index">04</span>
+                    <span class="action-entry-copy">
+                      <span id="action-pass-title" class="action-entry-title">跳过</span>
+                      <span id="action-pass-meta" class="action-entry-meta">USE ALL REMAINING AP</span>
+                    </span>
+                    <span id="action-pass-mark" class="action-entry-mark" aria-hidden="true">→</span>
+                  </button>
                 </div>
               </div>
               <div class="phase-step" data-phase="combat">

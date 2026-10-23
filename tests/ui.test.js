@@ -126,7 +126,7 @@ test('tile inspector keeps the clean overlay content contract', () => {
   assert.match(css, /\.production-tier-header\s*\{[^}]*font-size:\s*1rem/s);
   assert.match(css, /\.tile-inspector-tiers \.production-tier\s*\{[^}]*font-size:\s*1rem/s);
   assert.match(css, /\.tile-inspector-tiers \.production-tier:last-child\s*\{[^}]*border-bottom:\s*0/s);
-  assert.match(css, /\.force-detail-quantity\s*\{[^}]*font-size:\s*1rem/s);
+  assert.match(css, /\.force-detail-quantity\s*\{[^}]*font-size:\s*1\.15rem/s);
 });
 
 test('garrison details show only staffed unit types with structured metadata', () => {
@@ -153,7 +153,7 @@ test('garrison details show only staffed unit types with structured metadata', (
   assert.match(css, /\.force-detail-group-label\s*\{[^}]*position:\s*absolute[^}]*white-space:\s*nowrap/s);
   assert.doesNotMatch(detail, /force-detail-group-controls/);
   assert.match(css, /\.tile-inspector-forces\s*\{[^}]*overflow:\s*visible/s);
-  assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/s);
+  assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*24px\s+minmax\(0,\s*1fr\)\s+auto/s);
 });
 
 test('garrison groups use the same-width card as the inspector without an outer frame', () => {
@@ -275,7 +275,7 @@ test('active game uses a three-column tactical desk with a live four-seat roster
   const html = read('index.html');
   const app = read('app.js');
   const css = read('styles.css');
-  for (const id of ['game-session-meta', 'game-room-code', 'player-identity', 'ap-value', 'game-left-column', 'player-roster', 'player-roster-list', 'game-center-column', 'game-right-column']) {
+  for (const id of ['game-session-meta', 'game-room-code', 'player-identity', 'action-step-ap', 'game-left-column', 'player-roster', 'player-roster-list', 'game-center-column', 'game-right-column']) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
   assert.doesNotMatch(html, /id=["']player-overview["']/);
@@ -502,19 +502,23 @@ test('app renderer formats live resource cards and readable action labels', () =
   assert.match(app, /snapshot\.players/);
 });
 
-test('action phase exposes AP and reachable action type entries', () => {
+test('action phase keeps its only AP readout in the collapsible step header', () => {
   const html = read('index.html');
   const app = read('app.js');
   const css = read('styles.css');
-  assert.match(html, /id=["']action-ap["']/);
+  assert.doesNotMatch(html, /id=["']ap-value["']/);
+  assert.match(html, /data-phase-toggle=["']action["'][^>]*>[\s\S]*?id=["']action-step-ap["']/);
+  assert.doesNotMatch(html, /id=["']action-ap["']/);
   assert.match(html, /id=["']action-pass["']/);
   assert.match(app, /action-entry/);
+  assert.match(app, /const actionStepAp = \$\('action-step-ap'\)/);
   assert.match(app, /window\.CONFIG_312\?\.start\?\.ap/);
   assert.match(app, /action\.type === 'dispatch' \|\| action\.type === 'deploy'/);
   assert.match(app, /action\.type === 'recruit'/);
   assert.match(app, /actionPass\.hidden/);
   assert.match(css, /\.action-entry\s*\{/);
-  assert.match(css, /\.action-ap-readout\s*\{/);
+  assert.match(css, /\.action-step-ap\s*\{/);
+  assert.doesNotMatch(css, /\.action-ap-readout\s*\{/);
 });
 
 test('action phase keeps build, dispatch, and recruit entries visible when unavailable', () => {
@@ -532,7 +536,7 @@ test('action phase keeps build, dispatch, and recruit entries visible when unava
   assert.match(app, /textContent = '取消'/);
   assert.match(app, /clearDispatchDraft\(\{ refresh: false \}\)/);
   assert.match(app, /state\.recruitDraft = null/);
-  assert.match(app, /actionPass\.textContent = '跳过'/);
+  assert.match(app, /actionPassTitle\.textContent = '跳过'/);
   assert.match(app, /actionPass\.setAttribute\('aria-label', '跳过本轮行动'\)/);
   assert.match(app, /if \(accepted\) clearActionSelection\(\)/);
   assert.match(app, /if \(!canAct && \(state\.actionMode \|\| state\.buildDraft \|\| state\.dispatchDraft \|\| state\.recruitDraft\)\)/);
@@ -542,17 +546,29 @@ test('action phase keeps build, dispatch, and recruit entries visible when unava
   assert.match(css, /\.action-entry:disabled\s*\{[^}]*background:\s*var\(--ef-rule\)[^}]*opacity:\s*\.55/s);
 });
 
-test('selected action operations render in a right-side workspace beside the action entries', () => {
+test('selected action operations render as a full-width numbered action record', () => {
   const app = read('app.js');
   const css = read('styles.css');
   assert.match(app, /action-command-layout/);
+  assert.match(app, /action-command-head/);
+  assert.match(app, /\/\/ PROCEDURE STACK \/ 04/);
+  assert.match(app, /headTitle\.textContent = '行动记录'/);
+  assert.match(app, /headMark\.className = 'action-command-head-mark'/);
+  assert.match(app, /headMark\.textContent = 'D\+'/);
+  assert.match(app, /titleRow\.append\(headTitle, headMark\)/);
   assert.match(app, /action-command-menu/);
+  assert.match(app, /action-record/);
+  assert.match(app, /action-entry-index/);
   assert.match(app, /action-workspace/);
-  assert.match(app, /layout\.append\(menu, workspace\)/);
+  assert.match(app, /activeRecord\?\.append\(workspace\)/);
   assert.match(app, /workspace\.append/);
-  assert.match(css, /\.action-command-layout\s*\{[^}]*grid-template-columns:\s*minmax\(6rem, 7rem\) minmax\(0, 1fr\)/s);
-  assert.match(css, /\.action-workspace\s*\{[^}]*border-left:\s*1px\s+solid\s+var\(--ef-rule\)/s);
-  assert.match(css, /@media \(max-width: 700px\)[\s\S]*\.action-command-layout\s*\{[^}]*grid-template-columns:\s*minmax\(5.5rem, 6.5rem\) minmax\(0, 1fr\)/s);
+  assert.match(css, /\.action-command-layout\s*\{[^}]*width:\s*100%[^}]*border:\s*1px\s+solid\s+var\(--ef-ink\)/s);
+  assert.match(css, /\.action-command-head::before\s*\{[^}]*background:\s*var\(--ef-signal\)[^}]*clip-path:/s);
+  assert.match(css, /\.action-command-head-mark\s*\{[^}]*background:\s*var\(--ef-ink\)[^}]*clip-path:/s);
+  assert.match(css, /\.phase-step-content\s*\{[^}]*align-self:\s*stretch[^}]*width:\s*100%/s);
+  assert.match(css, /\.action-entry\s*\{[^}]*grid-template-columns:\s*2\.1rem\s+minmax\(0, 1fr\)\s+1rem/s);
+  assert.match(css, /\.action-entry\[aria-pressed="true"\]\s*\{[^}]*color:\s*#fff[^}]*background:\s*var\(--ef-ink\)/s);
+  assert.match(css, /\.action-workspace\s*\{[^}]*width:\s*100%[^}]*border:\s*1px\s+solid\s+var\(--ef-ink\)/s);
 });
 
 test('dispatch confirmation and route feedback stay explicit without closing tile details', () => {
@@ -565,21 +581,47 @@ test('dispatch confirmation and route feedback stay explicit without closing til
   assert.match(app, /if \(toggle && !inspector\.hidden && inspector\.dataset\.coord === coord\)/);
   assert.match(css, /\.dispatch-confirm-endpoint:disabled\s*\{[^}]*background:\s*var\(--ef-rule\)/s);
   assert.match(css, /\.dispatch-route-overlay\s*\{[^}]*pointer-events:\s*none/s);
-  assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto/s);
+  assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*24px\s+minmax\(0, 1fr\)\s+auto/s);
 });
 
 test('action skip uses the short label and clears the action selection contract', () => {
   const html = read('index.html');
   const app = read('app.js');
-  assert.match(html, /id=["']action-pass["'][^>]*aria-label=["']跳过本轮行动["'][^>]*>跳过</);
+  assert.match(html, /id=["']action-pass["'][^>]*aria-label=["']跳过本轮行动["'][^>]*>[\s\S]*id=["']action-pass-title["'][^>]*>跳过</);
+  assert.match(html, /action-entry-index[^>]*>04</);
+  assert.match(html, /id=["']action-pass-meta["'][^>]*>USE ALL REMAINING AP</);
   assert.match(app, /pass: '跳过'/);
   assert.doesNotMatch(app, /pass: '结束行动'/);
+});
+
+test('available skip action uses the approved muted brick red while PASS stays neutral gray', () => {
+  const css = read('styles.css');
+  assert.match(css, /--action-stop:\s*#b7645b/i);
+  assert.match(css, /--action-stop-edge:\s*#8a403a/i);
+  assert.match(css, /\.action-pass:not\(:disabled\)[^{]*\{[^}]*border-color:\s*var\(--action-stop-edge\)[^}]*background:\s*var\(--action-stop\)/s);
+  assert.match(css, /\.action-pass\.is-passed,\s*\.action-pass\.is-passed:hover\s*\{[^}]*background:\s*var\(--ef-rule\)/s);
+});
+
+test('a passed player keeps the gray PASS action inside its workspace and hides only the action records', () => {
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(app, /if \(me\?\.passed\) \{/);
+  assert.match(app, /layout\.append\(head, menu, footer\)/);
+  assert.match(app, /footer\.append\(status, actionPass\)/);
+  assert.match(app, /menu\.hidden = Boolean\(me\?\.passed\)/);
+  assert.match(app, /status\.textContent = '本轮已跳过，等待其他玩家行动'/);
+  assert.match(app, /actionPass\.className = 'action-entry action-pass is-passed'/);
+  assert.match(app, /actionPassTitle\.textContent = 'PASS'/);
+  assert.match(app, /actionPassMeta\.textContent = 'ALL AP USED'/);
+  assert.doesNotMatch(app, /if \(me\?\.passed\) \{\s*actionsPanel\.replaceChildren\(\)/);
+  assert.match(css, /\.action-command-footer\s*\{[^}]*border-top:\s*1px\s+solid\s+var\(--ef-ink\)/s);
+  assert.match(css, /\.action-pass\.is-passed,\s*\.action-pass\.is-passed:hover\s*\{[^}]*background:\s*var\(--ef-rule\)/s);
 });
 
 test('action cancel stays local while pass is the phase-level skip', () => {
   const app = read('app.js');
   assert.match(app, /textContent = '取消'/);
-  assert.match(app, /actionPass\.textContent = '跳过'/);
+  assert.match(app, /actionPassTitle\.textContent = '跳过'/);
   assert.match(app, /player\.passed \? 'PASS'/);
 });
 
