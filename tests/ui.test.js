@@ -378,6 +378,32 @@ test('player phase guidance is a live vertical step bar with current action hint
   assert.match(css, /\.phase-step\.is-current/);
 });
 
+test('phase rail headers target real collapsible phase content', () => {
+  const html = read('index.html');
+  const css = read('styles.css');
+  for (const phase of ['exploration', 'production', 'purchase', 'action', 'combat', 'black', 'ended']) {
+    assert.match(html, new RegExp(`data-phase-toggle=["']${phase}["'][^>]*aria-expanded=["']true["'][^>]*aria-controls=["']phase-content-${phase}["']`));
+    assert.match(html, new RegExp(`id=["']phase-content-${phase}["'][^>]*class=["'][^"']*phase-step-content`));
+  }
+  assert.match(css, /\.phase-step-header\s*\{/);
+  assert.match(css, /\.phase-step-content\s*\{/);
+  assert.match(css, /\.phase-step\.is-collapsed \.phase-step-content\s*\{[^}]*display:\s*none/s);
+  assert.match(html, /id=["']phase-content-purchase["'][\s\S]*id=["']purchase-actions["']/);
+  assert.match(html, /id=["']phase-content-action["'][\s\S]*id=["']legal-actions["']/);
+});
+
+test('phase rail keeps local folds and expands on phase and self-turn edges', () => {
+  const app = read('app.js');
+  assert.match(app, /collapsedPhases:\s*new Set\(\)/);
+  assert.match(app, /function bindPhaseToggleButtons/);
+  assert.match(app, /data-phase-toggle/);
+  assert.match(app, /collapsedPhases\.delete\(snapshot\.phase\)/);
+  assert.match(app, /previousPhase !== snapshot\.phase/);
+  assert.match(app, /!wasMyTurn && isMyTurn/);
+  assert.match(app, /轮到你，可以操作/);
+  assert.match(app, /renderPhaseGuide\(snapshot, previousPhase, previousActiveSeat\)/);
+});
+
 test('four seats use distinct colors across map, overview, and cards', () => {
   const html = read('index.html');
   const app = read('app.js');

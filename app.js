@@ -58,6 +58,7 @@
     phaseNoticeQueue: [],
     phaseNoticePlaying: false,
     phaseNotices: [],
+    collapsedPhases: new Set(),
   };
 
   const PHASE_LABELS = {
@@ -649,7 +650,37 @@
   function formatPhase(phase) { return PHASE_LABELS[phase] || phase || '—'; }
   function countForces(forces = {}) { return Object.values(forces).reduce((sum, count) => sum + (count || 0), 0); }
 
-  function renderPhaseGuide(snapshot) {
+  function isInteractivePhase(phase) {
+    return phase === 'purchase' || phase === 'action';
+  }
+
+  function syncPhaseCollapse(phase) {
+    const step = document.querySelector(`.phase-step[data-phase="${phase}"]`);
+    if (!step) return;
+    const collapsed = state.collapsedPhases.has(phase);
+    step.classList.toggle('is-collapsed', collapsed);
+    const toggle = step.querySelector('[data-phase-toggle]');
+    if (toggle) toggle.setAttribute('aria-expanded', String(!collapsed));
+  }
+
+  function syncAllPhaseCollapse() {
+    document.querySelectorAll('.phase-step[data-phase]').forEach((step) => syncPhaseCollapse(step.dataset.phase));
+  }
+
+  function bindPhaseToggleButtons() {
+    document.querySelectorAll('[data-phase-toggle]').forEach((toggle) => {
+      toggle.addEventListener('click', () => {
+        const phase = toggle.dataset.phaseToggle;
+        if (!phase) return;
+        if (state.collapsedPhases.has(phase)) state.collapsedPhases.delete(phase);
+        else state.collapsedPhases.add(phase);
+        syncPhaseCollapse(phase);
+      });
+    });
+    syncAllPhaseCollapse();
+  }
+
+  function renderPhaseGuide(snapshot, previousPhase = state.lastPhase, previousActiveSeat = state.lastActiveSeat) {
     const currentIndex = PHASE_ORDER.indexOf(snapshot.phase);
     document.querySelectorAll('.phase-step[data-phase]').forEach((step) => {
       const index = PHASE_ORDER.indexOf(step.dataset.phase);
@@ -659,6 +690,13 @@
     const active = snapshot.players.find((player) => player.seat === snapshot.activeSeat);
     const activeLabel = active ? `P${active.seat} ${active.name}` : '玩家方';
     const actionCount = (snapshot.legalActions || []).length;
+    const me = snapshot.players.find((player) => player.id === state.enginePlayerId) || snapshot.players[0];
+    const isMyTurn = isInteractivePhase(snapshot.phase) && me?.seat === snapshot.activeSeat;
+    const wasMyTurn = isInteractivePhase(previousPhase) && me?.seat === previousActiveSeat;
+    const enteredPhase = previousPhase === null || previousPhase !== snapshot.phase;
+    const becameMyTurn = !wasMyTurn && isMyTurn;
+    if (enteredPhase || becameMyTurn) state.collapsedPhases.delete(snapshot.phase);
+    syncAllPhaseCollapse();
     const guidance = {
       exploration: '探索正在结算：查看地图与事件，完成后自动进入产出。',
       production: '资源正在结算：确认产出后进入购牌阶段。',
@@ -668,7 +706,9 @@
       black: '黑方正在行动：扩张与抽牌完成后进入下一轮探索。',
       ended: snapshot.outcome?.status === 'win' ? '玩家方已占领黑总部，共同胜利。' : '对局已结束，查看共同结果与个人排名。',
     };
-    $('phase-guidance').textContent = guidance[snapshot.phase] || '等待下一阶段。';
+    $('phase-guidance').textContent = becameMyTurn
+      ? `${activeLabel}，轮到你，可以操作。${actionCount ? `当前有 ${actionCount} 项可选。` : ''}`
+      : (guidance[snapshot.phase] || '等待下一阶段。');
   }
 
   function renderResourceStrip(player) {
@@ -997,7 +1037,7 @@
       ? (snapshot.outcome.status === 'win' ? '共同胜利' : '共同失败')
       : (active ? `P${active.seat} ${active.name}` : '—');
     renderPlayerRoster(snapshot.players, snapshot.activeSeat, snapshot.round, snapshot.outcome);
-    renderPhaseGuide(snapshot);
+    renderPhaseGuide(snapshot, previousPhase, previousActiveSeat);
     renderBoard(snapshot);
     const me = snapshot.players.find((player) => player.id === state.enginePlayerId) || snapshot.players[0];
     renderGameSessionMeta(me);
@@ -1201,6 +1241,7 @@
     state.phaseNoticeQueue = [];
     state.phaseNoticePlaying = false;
     state.phaseNotices = [];
+    state.collapsedPhases.clear();
     const banner = $('phase-transition-banner');
     if (banner) {
       banner.classList.remove('is-visible');
@@ -1413,6 +1454,7 @@
       state.clientId = id();
       state.enginePlayerId = 'p1';
       state.lastActiveSeat = null;
+      state.lastPhase = null;
       resetPhaseNotices();
       state.selectedPurchaseSlot = null;
       state.room = null;
@@ -1489,6 +1531,7 @@
 
   $('create-room').addEventListener('click', startHost);
   $('quick-simulate').addEventListener('click', startQuickSimulation);
+  bindPhaseToggleButtons();
   $('hand-page-prev').addEventListener('click', () => {
     state.handPage -= 1;
     renderHandPage();
