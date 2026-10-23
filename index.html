@@ -165,13 +165,30 @@
                 <button class="phase-step-header" type="button" data-phase-toggle="purchase" aria-expanded="true" aria-controls="phase-content-purchase"><span class="phase-step-dot">3</span><span><span class="phase-label">购牌</span><strong>明牌 / 盲牌</strong></span><span class="phase-step-caret" aria-hidden="true">⌄</span></button>
                 <div id="phase-content-purchase" class="phase-step-content">
                   <div id="purchase-actions" class="phase-step-actions purchase-actions" data-phase-actions="purchase" hidden>
-                    <div id="purchase-market" class="purchase-market" aria-label="五张明牌"></div>
-                    <p id="purchase-selection-status" class="purchase-selection-status">请选择一张明牌</p>
-                    <div class="purchase-controls" aria-label="购牌操作">
-                      <button id="purchase-confirm" class="primary-button" type="button" disabled>购买所选</button>
-                      <button id="purchase-random" class="secondary-button" type="button">随机一张</button>
-                      <button id="purchase-pass" class="secondary-button" type="button">结束购牌</button>
-                    </div>
+                    <section class="purchase-blueprint" aria-labelledby="purchase-blueprint-title">
+                      <header class="purchase-blueprint-head">
+                        <p class="purchase-blueprint-eyebrow">// BLUEPRINT PLANNING / 06</p>
+                        <div class="purchase-blueprint-title-row">
+                          <h3 id="purchase-blueprint-title">蓝图规划</h3>
+                          <span class="purchase-blueprint-grid-size">3 × 2</span>
+                        </div>
+                      </header>
+                      <div id="purchase-market" class="purchase-market" aria-label="五张明牌与一张未知蓝图">
+                        <button id="purchase-random" class="purchase-random-slot" type="button" aria-label="购买一张未知蓝图">
+                          <span class="purchase-blueprint-slot-number">06</span>
+                          <span class="purchase-random-copy">
+                            <strong class="purchase-random-title">未知蓝图</strong>
+                            <span class="purchase-random-meta">BLIND DRAW</span>
+                          </span>
+                          <span class="purchase-random-mark" aria-hidden="true">?</span>
+                        </button>
+                      </div>
+                      <p id="purchase-selection-status" class="purchase-selection-status">请选择一张明牌</p>
+                      <div class="purchase-controls" aria-label="购牌操作">
+                        <button id="purchase-confirm" class="primary-button" type="button" disabled>购买所选</button>
+                        <button id="purchase-pass" class="secondary-button" type="button">结束购牌</button>
+                      </div>
+                    </section>
                   </div>
                 </div>
               </div>

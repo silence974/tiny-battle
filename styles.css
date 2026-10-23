@@ -376,12 +376,22 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .card-chip-production .production-tier { grid-template-columns: 3rem minmax(0, 1fr); min-height: 34px; padding-inline: .2rem; border-top: 0; font-size: 1rem; }
 .card-chip-production .production-tier:last-child { border-bottom: 0; }
 .card-chip-cost { margin-top: auto; padding-top: .42rem; color: var(--ef-ink); border-top: 1px solid var(--ef-rule); font-size: .9375rem; font-weight: 750; }
-.purchase-actions { display: grid; gap: .4rem; min-width: 0; }
-.purchase-market { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; min-width: 0; margin-top: .35rem; padding: .1rem .1rem .35rem; }
-.purchase-market-card { width: 100%; min-width: 0; aspect-ratio: 1 / 1; gap: .25rem; padding: .45rem; overflow: hidden; font-size: .78rem; text-align: left; }
-.purchase-market-card.is-selected { position: relative; z-index: 1; border-width: 4px; border-color: var(--ef-ink); background: var(--ef-panel); box-shadow: 6px 6px 0 var(--ef-signal); }
+.purchase-actions { display: grid; min-width: 0; }
+.purchase-blueprint { --blueprint-paper: #eef4f7; --blueprint-panel: #f9fcfd; --blueprint-line: #9eb4bf; --blueprint-line-soft: #cedce2; --blueprint-ink: #244251; --blueprint-ink-2: #617984; --blueprint-chip: #dce8ed; display: grid; min-width: 0; overflow: hidden; color: var(--blueprint-ink); border: 1px solid var(--blueprint-ink); background-color: var(--blueprint-paper); background-image: linear-gradient(rgb(36 66 81 / 6%) 1px, transparent 1px), linear-gradient(90deg, rgb(36 66 81 / 6%) 1px, transparent 1px); background-size: 14px 14px; }
+.purchase-blueprint-head { position: relative; display: grid; align-content: center; gap: .22rem; min-height: 4.35rem; padding: .66rem .75rem .62rem 1rem; overflow: hidden; color: var(--blueprint-ink); border-bottom: 1px solid var(--blueprint-ink); background: rgb(249 252 253 / 88%); }
+.purchase-blueprint-head::before { position: absolute; inset: .45rem auto .45rem 0; width: .34rem; content: ""; background: #9fcfe0; clip-path: polygon(0 0, 100% 0, 100% 78%, 0 100%); }
+.purchase-blueprint-head::after { position: absolute; inset: 0 0 0 auto; width: 38%; content: ""; opacity: .72; background: repeating-linear-gradient(135deg, transparent 0 6px, rgb(36 66 81 / 17%) 6px 7px); clip-path: polygon(28% 0, 100% 0, 100% 100%, 0 100%); pointer-events: none; }
+.purchase-blueprint-eyebrow { position: relative; z-index: 1; margin: 0; color: var(--blueprint-ink-2); font-family: "Saira", sans-serif; font-size: .56rem; font-weight: 800; letter-spacing: .075em; line-height: 1.2; }
+.purchase-blueprint-title-row { position: relative; z-index: 1; display: flex; align-items: end; gap: .5rem; width: fit-content; }
+.purchase-blueprint-title-row h3 { margin: 0; color: var(--blueprint-ink); font-size: 1rem; font-weight: 820; line-height: 1.15; }
+.purchase-blueprint-grid-size { display: grid; place-items: center; min-width: 2.35rem; height: 1.15rem; padding: 0 .35rem; color: #fff; background: var(--blueprint-ink); clip-path: polygon(0 0, 100% 0, calc(100% - .25rem) 100%, 0 100%); font-family: "Saira", sans-serif; font-size: .5rem; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: .04em; line-height: 1; }
+.purchase-market { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .42rem; min-width: 0; padding: .55rem; }
+.purchase-market-card { position: relative; width: 100%; min-width: 0; aspect-ratio: 1.08 / 1; gap: .25rem; padding: 1.15rem .45rem .45rem; overflow: hidden; color: var(--blueprint-ink); border-color: var(--blueprint-line); background: rgb(249 252 253 / 92%); font-size: .78rem; text-align: left; }
+.purchase-market-card::before { position: absolute; top: .35rem; left: .42rem; content: attr(data-blueprint-slot); color: var(--blueprint-ink-2); font-family: "Saira", sans-serif; font-size: .52rem; font-weight: 850; font-variant-numeric: tabular-nums; letter-spacing: .05em; }
+.purchase-market-card:hover, .purchase-market-card:focus-visible { color: var(--blueprint-ink); border-color: var(--blueprint-ink); background: var(--blueprint-chip); }
+.purchase-market-card.is-selected { position: relative; z-index: 1; border-width: 4px; border-color: var(--blueprint-ink); background: var(--blueprint-panel); box-shadow: 6px 6px 0 #9fcfe0; }
 .purchase-market-card:disabled { cursor: not-allowed; opacity: .48; }
-.purchase-market-card:disabled:hover { color: var(--ef-ink); border-color: var(--ef-ink); background: var(--ef-panel); }
+.purchase-market-card:disabled:hover { color: var(--blueprint-ink); border-color: var(--blueprint-line); background: var(--blueprint-panel); }
 .purchase-market-card .card-chip-header { gap: .3rem; padding-bottom: .22rem; }
 .purchase-market-card .card-chip-header strong:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .purchase-market-card .card-chip-points { font-size: 1.15rem; }
@@ -389,12 +399,20 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .purchase-market-card .card-chip-production::before { top: 1.35rem; left: 2rem; }
 .purchase-market-card .production-tier-header { padding-inline: .1rem; font-size: .7rem; }
 .purchase-market-card .card-chip-cost { padding-top: .25rem; font-size: .7rem; }
-.purchase-selection-status { margin: 0; color: var(--ef-ink-2); font-size: .68rem; line-height: 1.35; }
-.purchase-controls { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
-.purchase-controls button { min-width: 0; padding: .45rem .45rem; font-size: .68rem; }
+.purchase-random-slot { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; gap: .45rem; width: 100%; min-width: 0; min-height: 0; aspect-ratio: 1.08 / 1; padding: .55rem; overflow: hidden; color: var(--blueprint-ink); border: 1px solid var(--blueprint-line); background: repeating-linear-gradient(135deg, rgb(249 252 253 / 96%) 0 8px, rgb(220 232 237 / 92%) 8px 9px); clip-path: polygon(0 0, 100% 0, 100% calc(100% - .65rem), calc(100% - .65rem) 100%, 0 100%); text-align: left; }
+.purchase-random-slot::before { position: absolute; inset: .55rem; content: ""; border: 1px solid rgb(36 66 81 / 18%); pointer-events: none; }
+.purchase-random-slot:hover, .purchase-random-slot:focus-visible { color: #fff; border-color: var(--blueprint-ink); background: var(--blueprint-ink); }
+.purchase-blueprint-slot-number { position: relative; z-index: 1; display: grid; place-items: center; width: 1.8rem; height: 1.8rem; color: var(--blueprint-ink); background: #fff; font-family: "Saira", sans-serif; font-size: .58rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.purchase-random-copy { position: relative; z-index: 1; display: grid; gap: .08rem; min-width: 0; }
+.purchase-random-title { font-size: .86rem; line-height: 1.05; }
+.purchase-random-meta { overflow: hidden; font-family: "Saira", sans-serif; font-size: .5rem; font-weight: 760; letter-spacing: .055em; text-overflow: ellipsis; white-space: nowrap; }
+.purchase-random-mark { position: relative; z-index: 1; align-self: center; font-family: "Saira", sans-serif; font-size: 1.25rem; font-weight: 350; }
+.purchase-random-slot:disabled { cursor: not-allowed; color: var(--blueprint-ink-2); background: var(--blueprint-chip); opacity: .48; }
+.purchase-selection-status { margin: 0 .55rem; padding: .42rem .5rem; color: var(--blueprint-ink-2); border-left: 4px solid #9fcfe0; background: rgb(249 252 253 / 88%); font-size: .68rem; line-height: 1.35; }
+.purchase-controls { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; padding: .5rem .55rem .55rem; }
+.purchase-controls button { min-width: 0; min-height: 2.65rem; padding: .45rem .45rem; font-size: .68rem; }
 .purchase-controls button:disabled { cursor: not-allowed; color: var(--ef-ink-2); border-color: var(--ef-rule); background: var(--ef-rule); opacity: .55; box-shadow: none; }
 .purchase-controls button:disabled:hover { color: var(--ef-ink-2); border-color: var(--ef-rule); background: var(--ef-rule); }
-.purchase-controls #purchase-pass { grid-column: 1 / -1; }
 .actions { display: grid; gap: .45rem; margin-top: .8rem; }
 .action-button { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; text-align: left; }
 .action-button .action-type { color: inherit; }
@@ -521,12 +539,15 @@ body.is-game-active .app-shell { height: calc(100dvh - 55px); padding-block: .5r
   body.is-game-active .phase-rail, body.is-game-active .player-overview { min-height: 0; }
   body.is-game-active .phase-rail { gap: .3rem; padding: .4rem; }
   body.is-game-active .phase-step { min-height: 30px; }
-  body.is-game-active .phase-step strong { display: none; }
+  body.is-game-active .phase-step-header strong { display: none; }
   body.is-game-active .phase-summary { gap: .25rem; padding-top: .3rem; }
   body.is-game-active .phase-summary strong, body.is-game-active .phase-label { font-size: .62rem; }
   body.is-game-active .phase-guidance, body.is-game-active .player-overview .stat-row { display: none; }
-  body.is-game-active .purchase-market { display: flex; overflow-x: auto; }
-  body.is-game-active .purchase-market-card { flex: 0 0 min(128px, 38vw); width: auto; }
+  body.is-game-active .purchase-market { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; padding: .45rem; }
+  body.is-game-active .purchase-market-card { width: 100%; }
+  body.is-game-active .purchase-blueprint-head { min-height: 3.9rem; padding: .62rem .62rem .58rem .9rem; }
+  body.is-game-active .purchase-selection-status { margin: 0 .45rem; }
+  body.is-game-active .purchase-controls { padding: .45rem; }
   body.is-game-active .player-overview { padding: .6rem; }
   body.is-game-active .player-overview .panel-heading { align-items: center; flex-direction: row; }
   body.is-game-active .player-overview .resource-strip { margin: .5rem 0; }

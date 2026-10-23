@@ -343,6 +343,9 @@ test('purchase phase shows full market cards, power badges, and one-shot turn au
   const app = read('app.js');
   const css = read('styles.css');
   assert.match(html, /id=["']purchase-actions["']/);
+  assert.match(html, /class=["'][^"']*purchase-blueprint[^"']*["']/);
+  assert.match(html, /id=["']purchase-blueprint-title["'][^>]*>蓝图规划</);
+  assert.match(html, /purchase-blueprint-grid-size[^>]*>3 × 2</);
   assert.match(html, /id=["']purchase-market["']/);
   assert.match(html, /id=["']purchase-confirm["']/);
   assert.match(html, /id=["']purchase-random["']/);
@@ -358,11 +361,29 @@ test('purchase phase shows full market cards, power badges, and one-shot turn au
   assert.match(app, /AudioContext/);
   assert.match(css, /\.purchase-market\s*\{/);
   assert.match(css, /\.purchase-market\s*\{[^}]*grid-template-columns:\s*repeat\(2/s);
-  assert.match(css, /body\.is-game-active \.purchase-market\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /--blueprint-paper:\s*#eef4f7/i);
+  assert.match(css, /--blueprint-ink:\s*#244251/i);
+  assert.match(css, /body\.is-game-active \.purchase-market\s*\{[^}]*grid-template-columns:\s*repeat\(2/s);
+  assert.doesNotMatch(css, /body\.is-game-active \.purchase-market\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /body\.is-game-active \.phase-step-header strong\s*\{[^}]*display:\s*none/s);
+  assert.doesNotMatch(css, /body\.is-game-active \.phase-step strong\s*\{[^}]*display:\s*none/s);
   assert.match(css, /\.purchase-market-card\.is-selected/);
   assert.match(css, /\.purchase-controls button:disabled\s*\{[^}]*color:\s*var\(--ef-ink-2\)[^}]*background:\s*var\(--ef-rule\)[^}]*opacity:\s*\.55/s);
   assert.match(css, /@media \(max-width: 700px\)[\s\S]*body\.is-game-active \.game-right-column\s*\{[^}]*grid-template-columns:\s*1fr/s);
   assert.match(css, /\.tile-main\s*\{[^}]*font-size:\s*(?:\.9|1)rem/s);
+});
+
+test('blueprint planning fills the sixth grid slot with the blind draw action', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(html, /id=["']purchase-market["'][^>]*>[\s\S]*id=["']purchase-random["'][\s\S]*purchase-blueprint-slot-number[^>]*>06</);
+  assert.match(html, /purchase-random-title[^>]*>未知蓝图</);
+  assert.match(html, /purchase-random-meta[^>]*>BLIND DRAW</);
+  assert.match(app, /const marketCards = faceUpCards\.map\(\(card, index\) =>/);
+  assert.match(app, /item\.dataset\.blueprintSlot = String\(index \+ 1\)\.padStart\(2, '0'\)/);
+  assert.match(app, /market\.replaceChildren\(\.\.\.marketCards, random\)/);
+  assert.match(css, /\.purchase-random-slot\s*\{[^}]*min-height:\s*0[^}]*background:/s);
 });
 
 test('purchase UI explains that a seat must end purchase before the next seat acts', () => {
@@ -381,7 +402,7 @@ test('purchase controls hide for waiting seats and gray used purchase slots', ()
   assert.match(app, /pass\.className = canAct \? 'primary-button' : 'secondary-button'/);
   assert.match(app, /renderCardDetail\(item, card\);[\s\S]*?item\.classList\.add\('purchase-market-card'\);[\s\S]*?item\.classList\.toggle\('is-selected'/s);
   assert.doesNotMatch(app, /已选：\$\{selectedDescription\.label\}/);
-  assert.match(css, /\.purchase-market-card\.is-selected\s*\{[^}]*border-width:\s*4px[^}]*background:\s*var\(--ef-panel\)[^}]*box-shadow:\s*6px 6px 0 var\(--ef-signal\)/s);
+  assert.match(css, /\.purchase-market-card\.is-selected\s*\{[^}]*border-width:\s*4px[^}]*background:\s*var\(--blueprint-panel\)[^}]*box-shadow:\s*6px 6px 0 #9fcfe0/s);
 });
 
 test('phase transitions expose a timed banner and production output cue', () => {

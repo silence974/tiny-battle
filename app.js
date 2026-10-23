@@ -1527,6 +1527,7 @@
     }
     const market = $('purchase-market');
     const purchaseControls = panel.querySelector('.purchase-controls');
+    const random = $('purchase-random');
     const me = snapshot.players.find((player) => player.id === state.enginePlayerId);
     const active = snapshot.players.find((player) => player.seat === snapshot.activeSeat);
     const isMyTurn = me?.seat === snapshot.activeSeat;
@@ -1551,11 +1552,12 @@
       },
       submitAction,
     });
-    market.replaceChildren(...faceUpCards.map((card, index) => {
+    const marketCards = faceUpCards.map((card, index) => {
       const item = document.createElement('button');
       item.type = 'button';
       item.dataset.purchaseSlot = String(index);
       item.dataset.purchaseCard = card;
+      item.dataset.blueprintSlot = String(index + 1).padStart(2, '0');
       item.disabled = state.phaseNoticePlaying || state.phaseNoticeQueue.length > 0 || !faceUpActions.has(card);
       item.setAttribute('aria-pressed', String(state.selectedPurchaseSlot === index));
       item.setAttribute('aria-label', `${cardDescription(card).label}，${item.disabled ? '当前不可购买' : '选择后确认购买'}`);
@@ -1564,7 +1566,8 @@
       item.classList.toggle('is-selected', state.selectedPurchaseSlot === index);
       item.addEventListener('click', () => purchaseHandlers.selectSlot(index));
       return item;
-    }));
+    });
+    market.replaceChildren(...marketCards, random);
     const selectedCardIndex = state.selectedPurchaseSlot;
     const selectedCard = Number.isInteger(selectedCardIndex) ? faceUpCards[selectedCardIndex] : null;
     $('purchase-selection-status').textContent = state.phaseNoticePlaying || state.phaseNoticeQueue.length
@@ -1581,7 +1584,6 @@
     const confirm = $('purchase-confirm');
     confirm.disabled = !canAct || purchase.faceUp > 0 || !selectedCard || !faceUpActions.has(selectedCard);
     confirm.onclick = () => void purchaseHandlers.confirm();
-    const random = $('purchase-random');
     random.disabled = !canAct || purchase.blind > 0 || !actions.some((action) => action.type === 'purchase_blind');
     random.onclick = () => void purchaseHandlers.random();
     const pass = $('purchase-pass');
