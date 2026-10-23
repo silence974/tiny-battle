@@ -13,6 +13,7 @@ test('root home page loads browser dependencies before app code and preserves th
   assert.match(html, /engine312\.js/);
   assert.match(html, /supabase-room\.js/);
   assert.match(html, /purchase-ui\.js/);
+  assert.match(html, /phase-notices\.js/);
   assert.match(html, /app\.js/);
   assert.match(html, /id=["']create-room["']/);
   assert.match(html, /创建房间|创建对局/);
@@ -81,6 +82,7 @@ test('host view is lobby-and-log only and auto-advances non-decision phases', ()
   assert.doesNotMatch(html, /id=["']advance-phase["']/);
   assert.match(app, /function renderHostLog/);
   assert.match(app, /function settleHostAutomatic/);
+  assert.match(app, /function settleHostCommandNotices/);
   assert.match(app, /settleHostAutomatic\(\)/);
   assert.match(app, /renderRoster\(\[\.\.\.state\.roomState\.players\.values\(\)\]/);
   assert.match(app, /state\.mode === 'host'/);
@@ -356,7 +358,9 @@ test('phase transitions expose a timed banner and production output cue', () => 
   assert.match(app, /state\.phaseNoticeQueue/);
   assert.match(app, /const duration = notice\.kind === 'production' \? 700 : PHASE_DISPLAY_MS/);
   assert.doesNotMatch(app, /function waitForPhaseDisplay/);
-  assert.match(app, /state\.phaseNotices = settleHostAutomatic\(\)/);
+  assert.match(app, /state\.phaseNotices = settleHostCommandNotices\(phaseBeforeCommand\)/);
+  assert.match(app, /const phaseBeforeCommand = state\.game\.phase/);
+  assert.match(app, /PhaseNotices\.commandPhaseNotices\(beforePhase, afterPhase, commandNotice, settleHostAutomatic\(\)\)/);
   assert.match(css, /\.phase-transition-banner/);
   assert.match(css, /\.phase-transition-banner\.is-visible/);
 });
@@ -459,7 +463,7 @@ test('host debug page contains four private perspective panels and seat-link con
 });
 
 test('browser scripts pass syntax checks and debug page is self-contained', () => {
-  for (const file of ['app.js', 'debug.js', 'engine312.js', 'config-312.js', 'supabase-room.js', 'agent-client.js']) {
+  for (const file of ['app.js', 'debug.js', 'engine312.js', 'config-312.js', 'supabase-room.js', 'agent-client.js', 'phase-notices.js']) {
     assert.equal(fs.existsSync(path.join(root, file)), true, `${file} should exist`);
   }
   assert.match(read('debug.html'), /debug\.js/);

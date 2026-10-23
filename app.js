@@ -1,6 +1,7 @@
 (function bootApp() {
   const Engine = window.Engine312;
   const Room = window.Room312;
+  const PhaseNotices = window.PhaseNotices312;
   const config = window.SUPABASE_CONFIG || {};
   const $ = (id) => document.getElementById(id);
 
@@ -1096,6 +1097,12 @@
     return notices;
   }
 
+  function settleHostCommandNotices(beforePhase) {
+    const afterPhase = state.game.phase;
+    const commandNotice = beforePhase === afterPhase ? null : makePhaseNotice(afterPhase);
+    return PhaseNotices.commandPhaseNotices(beforePhase, afterPhase, commandNotice, settleHostAutomatic());
+  }
+
   async function startGameAfterAllSeats() {
     if (state.started || !state.roomState || state.roomState.players.size !== Room.PLAYER_COUNT) return false;
     state.started = true;
@@ -1119,8 +1126,9 @@
       return;
     }
     try {
+      const phaseBeforeCommand = state.game.phase;
       state.game = Engine.applyCommand(state.game, { seq: command.seq, playerId: player.engineId, action: command.action }).state;
-      state.phaseNotices = settleHostAutomatic();
+      state.phaseNotices = settleHostCommandNotices(phaseBeforeCommand);
       renderHostLog(state.game);
       await sendRoster();
       await broadcastState();
@@ -1469,8 +1477,9 @@
       if (data.type === 'debug_action' && data.hostId === state.hostId) {
         try {
           const player = state.game.players.find((candidate) => candidate.seat === data.seat);
+          const phaseBeforeCommand = state.game.phase;
           state.game = Engine.applyCommand(state.game, { seq: data.seq, playerId: player.id, action: data.action }).state;
-          state.phaseNotices = settleHostAutomatic();
+          state.phaseNotices = settleHostCommandNotices(phaseBeforeCommand);
           renderHostLog(state.game);
           await broadcastState();
         } catch (error) { state.debugChannel.postMessage({ type: 'debug_error', message: error.message }); }
