@@ -114,8 +114,10 @@ capturing the black HQ makes the player side completely win; a black action
 card that forces the final battle while the black HQ remains standing makes
 the player side lose. In either outcome, the engine computes individual
 scores and a final ranking. Ranking is reported after the win/loss result and
-does not override it. Ranking compares total score first, then remaining
-gold, then the count of controlled non-HQ tiles; all three equal means a tie.
+does not override it. Ranking compares total score only; equal scores share
+the same rank. Remaining gold and the
+count of controlled non-HQ tiles remain available for display but do not break
+ties.
 
 The 312 boundary values are explicit: if black expansion covers an unknown
 tile with no expedition, the original unrevealed exploration event is not

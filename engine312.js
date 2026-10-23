@@ -865,16 +865,12 @@ function advance(input, config = DEFAULT_CONFIG) {
 
 function ranking(state, config) {
   const sorted = [...state.players].sort((a, b) => {
-    const score = b.score - a.score;
-    if (score) return score;
-    const gold = b.resources.gold - a.resources.gold;
-    if (gold) return gold;
-    return b.scoreBreakdown.controlledTiles - a.scoreBreakdown.controlledTiles;
+    return b.score - a.score;
   });
   let previous = null;
   let previousRank = 1;
   return sorted.map((player, index) => {
-    const tied = previous && player.score === previous.score && player.resources.gold === previous.resources.gold && player.scoreBreakdown.controlledTiles === previous.scoreBreakdown.controlledTiles;
+    const tied = previous && player.score === previous.score;
     const rank = tied ? previousRank : index + 1;
     previous = player;
     previousRank = rank;

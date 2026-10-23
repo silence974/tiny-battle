@@ -455,6 +455,20 @@ test('black zone reward is one-time, black HQ grants points without ordinary rew
   assert.deepEqual(tieRanks, [1, 1, 1, 1]);
 });
 
+test('ranking uses total score only and ties players with different gold or territory', () => {
+  const state = freshGame();
+  state.players[0].permanentPoints = 1;
+  state.players[0].resources.gold = 0;
+  state.players[1].resources.gold = 9;
+  setControlledTile(state, 'p2', [1, 1]);
+  state.players[2].resources.gold = 20;
+  state.players[3].resources.gold = 1;
+
+  const ranking = Engine.outcome(state).ranking;
+  assert.deepEqual(ranking.map((entry) => entry.playerId), ['p1', 'p2', 'p3', 'p4']);
+  assert.deepEqual(ranking.map((entry) => entry.rank), [1, 1, 3, 3]);
+});
+
 test('forced final battle is a shared loss while score ranking remains available', () => {
   let state = freshGame();
   state.round = CONFIG.black.finalBattleStartRound;
