@@ -101,7 +101,7 @@ test('host command round trip accepts one pass from each fixed seat without clie
       game = Engine.applyCommand(game, { seq: game.seq, playerId: seated.engineId, action: { type: 'pass' } }).state;
     });
   }
-  assert.equal(game.players[0].ap, 2);
+  assert.equal(game.players[0].ap, 0);
   assert.equal(game.seq, 4);
 });
 

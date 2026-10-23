@@ -526,7 +526,7 @@ function applyCommand(input, command, config = DEFAULT_CONFIG) {
     assert(state.phase === 'action', `actions are not legal during ${state.phase}`);
     assert(player.ap > 0 && !player.passed, 'player has no action remaining');
     if (action.type === 'pass') {
-      player.ap -= 1;
+      player.ap = 0;
       player.passed = true;
     } else if (action.type === 'build') {
       const target = state.board[key(action.at)];

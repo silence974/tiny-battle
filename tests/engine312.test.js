@@ -160,15 +160,15 @@ test('purchase keeps the seat active until it ends purchase, then the next playe
   assert.equal(state.activeSeat, 2);
 });
 
-test('action phase is P1-to-P4 round robin rather than one seat spending all AP', () => {
+test('action phase pass clears remaining AP while preserving round-robin order', () => {
   let state = stageAction(freshGame());
   state = command(state, 'p1', { type: 'pass' });
   assert.equal(state.activeSeat, 2);
-  assert.equal(state.players[0].ap, 2);
+  assert.equal(state.players[0].ap, 0);
   assert.equal(state.players[0].passed, true);
   state = command(state, 'p2', { type: 'pass' });
   assert.equal(state.activeSeat, 3);
-  assert.equal(state.players[1].ap, 2);
+  assert.equal(state.players[1].ap, 0);
   state = command(state, 'p3', { type: 'pass' });
   state = command(state, 'p4', { type: 'pass' });
   assert.equal(state.phase, 'combat');
