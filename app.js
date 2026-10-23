@@ -78,7 +78,7 @@
   const PHASE_ORDER = ['exploration', 'production', 'purchase', 'action', 'combat', 'black', 'ended'];
   const PHASE_DISPLAY_MS = 1200;
   const ACTION_LABELS = {
-    pass: '结束行动',
+    pass: '跳过',
     pass_purchase: '结束购牌',
     purchase_face_up: '购买明牌',
     purchase_blind: '购买盲牌',
@@ -593,6 +593,8 @@
       const forceRows = forceEntries.map(([unit, count]) => {
         const row = document.createElement('div');
         row.className = 'force-detail-row';
+        const line = document.createElement('div');
+        line.className = 'force-detail-line';
         const unitConfig = window.CONFIG_312.units[unit] || {};
         const copy = document.createElement('div');
         copy.className = 'force-detail-copy';
@@ -631,9 +633,13 @@
           plus.setAttribute('aria-label', `增加${UNIT_LABELS[unit] || unit}`);
           plus.onclick = () => changeDispatchForce(tile.coord, unit, 1);
           controls.append(minus, plus);
-          row.append(copy, quantity, controls);
-        } else row.append(copy, quantity);
-        return row;
+          row.append(copy, quantity);
+          line.append(row, controls);
+        } else {
+          row.append(copy, quantity);
+          line.append(row);
+        }
+        return line;
       });
       forcesPanel.append(...forceRows);
     }
@@ -941,6 +947,18 @@
     if (refresh && state.snapshot) renderDispatchSurface(state.snapshot.legalActions || []);
   }
 
+  function clearActionSelection({ refresh = true } = {}) {
+    state.actionMode = null;
+    clearBuildDraft({ refresh: false });
+    clearDispatchDraft({ refresh: false });
+    state.recruitDraft = null;
+    if (refresh && state.snapshot) {
+      renderBoard(state.snapshot);
+      renderHandPage(state.hand);
+      renderActions(state.snapshot.legalActions || []);
+    }
+  }
+
   function renderDispatchSummary(container, canAct) {
     const draft = state.dispatchDraft;
     if (!draft) return;
@@ -1193,7 +1211,7 @@
       exploration: '探索正在结算：查看地图与事件，完成后自动进入产出。',
       production: '资源正在结算：确认产出后进入购牌阶段。',
       purchase: `${activeLabel} 购牌中：可选 1 张明牌、1 张盲牌，或结束购牌。`,
-      action: `${activeLabel} 行动中：先看资源与兵力，再选择建造、派遣、部署或结束行动。${actionCount ? `当前有 ${actionCount} 项可选。` : ''}`,
+      action: `${activeLabel} 行动中：先看资源与兵力，再选择建造、派遣、部署或跳过。${actionCount ? `当前有 ${actionCount} 项可选。` : ''}`,
       combat: '战斗正在同时结算：冲突结果完成后进入黑方阶段。',
       black: '黑方正在行动：扩张与抽牌完成后进入下一轮探索。',
       ended: snapshot.outcome?.status === 'win' ? '玩家方已占领黑总部，共同胜利。' : '对局已结束，查看共同结果与个人排名。',
@@ -1469,21 +1487,24 @@
     actionAp.hidden = false;
     actionAp.textContent = `AP ${me?.ap ?? 0} / ${totalAp}`;
     const canAct = me?.seat === state.snapshot?.activeSeat && !state.phaseNoticePlaying && state.phaseNoticeQueue.length === 0;
+    if (!canAct && (state.actionMode || state.buildDraft || state.dispatchDraft || state.recruitDraft)) {
+      clearActionSelection({ refresh: false });
+    }
     const typeGroups = [
       { type: 'build', label: '建造', actions: actions.filter((action) => action.type === 'build') },
       { type: 'dispatch', label: '派遣', actions: actions.filter((action) => action.type === 'dispatch' || action.type === 'deploy') },
       { type: 'recruit', label: '招募', actions: actions.filter((action) => action.type === 'recruit') },
-    ].filter((group) => group.actions.length);
+    ];
     actionsPanel.replaceChildren(...typeGroups.map((group) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'action-entry';
-      button.disabled = !canAct;
+      button.disabled = !canAct || !group.actions.length;
       button.dataset.actionType = group.type;
       button.setAttribute('aria-pressed', String(state.actionMode === group.type));
       button.textContent = group.label;
       button.addEventListener('click', () => {
-        state.actionMode = state.actionMode === group.type ? null : group.type;
+        state.actionMode = group.type;
         if (state.actionMode !== 'build') clearBuildDraft({ refresh: false });
         if (state.actionMode !== 'dispatch') clearDispatchDraft({ refresh: false });
         if (state.actionMode !== 'recruit') state.recruitDraft = null;
@@ -1551,11 +1572,23 @@
       actionsPanel.append(confirm);
     }
     if (state.actionMode === 'recruit') renderRecruitPanel(actionsPanel, actions, canAct);
+    if (state.actionMode) {
+      const abandon = document.createElement('button');
+      abandon.type = 'button';
+      abandon.className = 'secondary-button';
+      abandon.textContent = '放弃';
+      abandon.onclick = () => clearActionSelection();
+      actionsPanel.append(abandon);
+    }
     const passAction = actions.find((action) => action.type === 'pass');
     actionPass.hidden = !passAction;
     actionPass.disabled = !canAct || !passAction;
-    actionPass.onclick = () => {
-      if (passAction) void submitAction(passAction);
+    actionPass.setAttribute('aria-label', '跳过本轮行动');
+    actionPass.textContent = '跳过';
+    actionPass.onclick = async () => {
+      if (!passAction) return;
+      const accepted = await submitAction(passAction);
+      if (accepted) clearActionSelection();
     };
   }
 

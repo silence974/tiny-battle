@@ -143,6 +143,9 @@ test('garrison details show only staffed unit types with structured metadata', (
   assert.match(css, /\.force-detail-copy\s*\{[^}]*display:\s*grid/s);
   assert.match(css, /\.force-detail-meta\s*\{[^}]*display:\s*flex/s);
   assert.match(css, /\.force-detail-quantity\s*\{[^}]*text-align:\s*right/s);
+  assert.match(detail, /force-detail-line/);
+  assert.match(detail, /line\.append\(row, controls\)/);
+  assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/s);
 });
 
 test('board tiles are square and expose an accessible snapshot detail inspector', () => {
@@ -489,6 +492,36 @@ test('action phase exposes AP and reachable action type entries', () => {
   assert.match(app, /actionPass\.hidden/);
   assert.match(css, /\.action-entry\s*\{/);
   assert.match(css, /\.action-ap-readout\s*\{/);
+});
+
+test('action phase keeps build, dispatch, and recruit entries visible when unavailable', () => {
+  const app = read('app.js');
+  const css = read('styles.css');
+  assert.match(app, /const typeGroups = \[/);
+  assert.match(app, /\{ type: 'build', label: '建造', actions: actions\.filter/);
+  assert.match(app, /\{ type: 'dispatch', label: '派遣', actions: actions\.filter/);
+  assert.match(app, /\{ type: 'recruit', label: '招募', actions: actions\.filter/);
+  assert.doesNotMatch(app, /\]\s*\.filter\(\(group\) => group\.actions\.length\)/);
+  assert.match(app, /button\.disabled = !canAct \|\| !group\.actions\.length/);
+  assert.match(app, /actionMode = group\.type/);
+  assert.doesNotMatch(app, /actionMode = state\.actionMode === group\.type \? null : group\.type/);
+  assert.match(app, /abandon\.className = 'secondary-button'/);
+  assert.match(app, /textContent = '放弃'/);
+  assert.match(app, /clearDispatchDraft\(\{ refresh: false \}\)/);
+  assert.match(app, /state\.recruitDraft = null/);
+  assert.match(app, /actionPass\.textContent = '跳过'/);
+  assert.match(app, /actionPass\.setAttribute\('aria-label', '跳过本轮行动'\)/);
+  assert.match(app, /if \(accepted\) clearActionSelection\(\)/);
+  assert.match(app, /if \(!canAct && \(state\.actionMode \|\| state\.buildDraft \|\| state\.dispatchDraft \|\| state\.recruitDraft\)\)/);
+  assert.match(css, /\.action-entry:disabled\s*\{[^}]*background:\s*var\(--ef-rule\)[^}]*opacity:\s*\.55/s);
+});
+
+test('action skip uses the short label and clears the action selection contract', () => {
+  const html = read('index.html');
+  const app = read('app.js');
+  assert.match(html, /id=["']action-pass["'][^>]*aria-label=["']跳过本轮行动["'][^>]*>跳过</);
+  assert.match(app, /pass: '跳过'/);
+  assert.doesNotMatch(app, /pass: '结束行动'/);
 });
 
 test('build interaction uses one pending draft across tile-first and drag-first paths', () => {
