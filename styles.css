@@ -197,13 +197,13 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .tile-inspector-tiers .tier-axis { display: flex; align-items: center; align-self: stretch; }
 .tile-inspector-tiers .production-tier:last-child { border-bottom: 0; }
 .tile-inspector-cost { margin-top: auto; padding-top: .6rem; border-top: 1px solid var(--ef-ink); font-size: .9375rem; font-weight: 750; }
-.tile-inspector-forces { display: grid; gap: 0; width: 100%; overflow: visible; padding: .35rem 0; color: var(--ef-ink); border: 3px solid var(--ef-ink); border-top: 0; background: var(--ef-panel); pointer-events: auto; }
+.tile-inspector-forces { display: grid; gap: 0; width: 100%; overflow: visible; padding: .35rem 0; color: var(--ef-ink); background: transparent; pointer-events: auto; }
 .production-tier { display: grid; grid-template-columns: 2.5rem 3.5rem minmax(0, 1fr); gap: .45rem; align-items: center; min-height: 38px; padding: .35rem .45rem; color: var(--ef-ink-2); border-top: 1px solid var(--ef-rule); }
 .production-tier:last-child { border-bottom: 1px solid var(--ef-rule); }
 .production-tier.is-active { color: var(--ef-ink); background: var(--ef-signal); box-shadow: inset 5px 0 var(--ef-ink); }
 .production-tier strong { color: inherit; }
 .tier-axis { color: inherit; font-family: "Saira", sans-serif; font-size: 1rem; font-weight: 760; letter-spacing: .04em; }
-.force-detail-group { position: relative; min-width: 0; margin: .35rem 2.65rem; }
+.force-detail-group { position: relative; min-width: 0; margin: .35rem 0; }
 .force-detail-group-label { position: absolute; top: .45rem; left: 0; z-index: 1; display: flex; align-items: center; justify-content: center; min-width: 4.1rem; padding: .38rem .42rem; color: var(--seat-ink, var(--ef-ink)); background: var(--seat-tint, var(--ef-chip)); font-size: .72rem; font-weight: 900; letter-spacing: .04em; line-height: 1; white-space: nowrap; transform: translateX(calc(-100% - .3rem)); }
 .force-detail-group-p1 { --seat-tint: var(--seat-p1); --seat-ink: #fff; }
 .force-detail-group-p2 { --seat-tint: var(--seat-p2); --seat-ink: #fff; }
@@ -511,7 +511,7 @@ body.is-game-active .app-shell { height: calc(100dvh - 55px); padding-block: .5r
   .tile { padding: .24rem; font-size: .52rem; }
   .tile-main { font-size: .76rem; }
   .tile-detail { font-size: .47rem; }
-  .tile-inspector { width: calc(100vw - 1rem); max-height: calc(100vh - 1rem); }
+  .tile-inspector { width: min(320px, calc(100vw - 8rem)); max-height: calc(100vh - 1rem); }
   .card-list { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .card-chip { gap: .35rem; padding: .45rem; font-size: .875rem; }
   .card-chip-points { font-size: 1.25rem; }
@@ -550,7 +550,7 @@ body.is-game-active .app-shell { height: calc(100dvh - 55px); padding-block: .5r
   body.is-game-active[data-mobile-panel="actions"] .game-right-column > #phase-rail { min-height: 0; }
   body.is-game-active .action-command-layout { grid-template-columns: minmax(5.5rem, 6.5rem) minmax(0, 1fr); gap: .35rem; }
   body.is-game-active .action-workspace { padding-left: .35rem; }
-  body.is-game-active .force-detail-group { margin-right: 2.35rem; margin-left: 2.2rem; }
+  body.is-game-active .force-detail-group { margin-right: 0; margin-left: 0; }
   body.is-game-active .force-detail-group-label { min-width: 3.8rem; padding-right: .3rem; padding-left: .3rem; font-size: .64rem; }
   body.is-game-active .force-detail-group-controls { padding: .15rem; }
   body.is-game-active .game-center-column .board-card { height: 100%; }

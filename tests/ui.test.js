@@ -156,6 +156,14 @@ test('garrison details show only staffed unit types with structured metadata', (
   assert.match(css, /\.force-detail-line\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/s);
 });
 
+test('garrison groups use the same-width card as the inspector without an outer frame', () => {
+  const css = read('styles.css');
+  const forcesRule = css.match(/\.tile-inspector-forces\s*\{([^}]*)\}/s)?.[1] || '';
+  assert.doesNotMatch(forcesRule, /\bborder\s*:/);
+  assert.match(css, /\.force-detail-group\s*\{[^}]*margin:\s*\.35rem\s+0/s);
+  assert.match(css, /@media\s*\(max-width:\s*700px\)[\s\S]*?\.tile-inspector\s*\{[^}]*width:\s*min\(320px,\s*calc\(100vw\s*-\s*8rem\)\)/s);
+});
+
 test('board tiles are square and expose an accessible snapshot detail inspector', () => {
   const html = read('index.html');
   const app = read('app.js');
