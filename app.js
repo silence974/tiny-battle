@@ -579,10 +579,12 @@
     const description = tile.building ? cardDescription(tile.building) : null;
     cost.textContent = `建造要求　${resourceCostLabel(description?.cost)}`;
     const forcesPanel = $('tile-inspector-forces');
-    forcesPanel.hidden = false;
     forcesPanel.replaceChildren();
     const forceEntries = Object.entries(tile.garrison || {}).filter(([, count]) => Number(count) > 0);
-    if (tile.explored && forceEntries.length) {
+    if (!tile.explored || !forceEntries.length) {
+      forcesPanel.hidden = true;
+    } else {
+      forcesPanel.hidden = false;
       const forceRows = forceEntries.map(([unit, count]) => {
         const row = document.createElement('div');
         row.className = 'force-detail-row';
@@ -609,11 +611,6 @@
         return row;
       });
       forcesPanel.append(...forceRows);
-    } else {
-      const none = document.createElement('p');
-      none.className = 'muted';
-      none.textContent = tile.explored ? '无驻军' : '未知';
-      forcesPanel.append(none);
     }
     inspector.hidden = false;
   }

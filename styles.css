@@ -209,7 +209,6 @@ body.is-game-active .hand-panel { min-height: 0; overflow: hidden; }
 .force-detail-stat { white-space: nowrap; }
 .force-detail-quantity { min-width: 3.1rem; color: var(--ef-ink); font-family: "Saira", sans-serif; font-size: 1rem; font-variant-numeric: tabular-nums; text-align: right; }
 .force-detail-row:last-child { border-bottom: 1px solid var(--ef-rule); }
-.tile-inspector-forces > .muted { margin: 0; padding: .62rem .6rem; }
 
 .player-column { display: grid; gap: 1rem; min-width: 0; }
 .phase-rail { display: grid; gap: 1rem; align-content: start; padding: 1rem; }

@@ -137,6 +137,8 @@ test('garrison details show only staffed unit types with structured metadata', (
   assert.match(detail, /force-detail-copy/);
   assert.match(detail, /force-detail-meta/);
   assert.match(detail, /force-detail-quantity/);
+  assert.match(detail, /forcesPanel\.hidden = true/);
+  assert.doesNotMatch(detail, /无驻军/);
   assert.doesNotMatch(detail, /｜/);
   assert.match(css, /\.force-detail-copy\s*\{[^}]*display:\s*grid/s);
   assert.match(css, /\.force-detail-meta\s*\{[^}]*display:\s*flex/s);
